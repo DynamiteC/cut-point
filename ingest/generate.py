@@ -103,7 +103,7 @@ def simulate_session(
         }
 
     events.append(event(0, "start"))
-    for second in range(0, duration_s):
+    for second in range(duration_s):
         events.append(event(second, "heartbeat"))
         hazard = BASE_EXIT_HAZARD + cliff_hazard_bonus(second, cohort, cliffs)
         if rng.random() < hazard:

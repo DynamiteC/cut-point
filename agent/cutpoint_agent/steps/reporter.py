@@ -4,9 +4,9 @@ DirectorsNotes, writes JSON, then renders MD + HTML.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import AsyncGenerator
 
 from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
@@ -82,7 +82,7 @@ def build_directors_notes(
         trailer_id=trailer_id,
         title=title,
         duration_s=duration_s,
-        analyzed_at=datetime.now(timezone.utc),
+        analyzed_at=datetime.now(UTC),
         overall_retention_end=analysis.overall_retention_end,
         milestone_funnel=analysis.milestone_funnel,
         cliffs=findings,

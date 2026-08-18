@@ -6,7 +6,7 @@ BaseAgent so the pipeline order stays code-enforced (TASK.md section 7 step 2).
 from __future__ import annotations
 
 import os
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 import httpx
 from google.adk.agents import BaseAgent

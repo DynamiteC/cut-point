@@ -16,6 +16,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from dotenv import load_dotenv
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+
 REQUIRED_ENV = [
     "CLICKHOUSE_HOST",
     "CLICKHOUSE_PORT",
@@ -45,28 +46,27 @@ async def run_smoke_test() -> int:
 
     server_params = build_server_params()
 
-    async with stdio_client(server_params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
+    async with stdio_client(server_params) as (read, write), ClientSession(read, write) as session:
+        await session.initialize()
 
-            tools_result = await session.list_tools()
-            tool_names = [t.name for t in tools_result.tools]
-            print(f"tools available: {tool_names}")
-            assert "run_query" in tool_names, "run_query tool not registered"
+        tools_result = await session.list_tools()
+        tool_names = [t.name for t in tools_result.tools]
+        print(f"tools available: {tool_names}")
+        assert "run_query" in tool_names, "run_query tool not registered"
 
-            print("\nrunning: SELECT 1")
-            result = await session.call_tool("run_query", {"query": "SELECT 1"})
-            print(f"result: {result.content}")
+        print("\nrunning: SELECT 1")
+        result = await session.call_tool("run_query", {"query": "SELECT 1"})
+        print(f"result: {result.content}")
 
-            retention_sql = (
-                (REPO_ROOT / "sql" / "analysis" / "retention_curve.sql")
-                .read_text()
-                .format(trailer_id="demo_001")
-            )
-            print("\nrunning: retention_curve.sql for demo_001")
-            result = await session.call_tool("run_query", {"query": retention_sql})
-            text = result.content[0].text if result.content else ""
-            print(f"first 300 chars of result:\n{text[:300]}")
+        retention_sql = (
+            (REPO_ROOT / "sql" / "analysis" / "retention_curve.sql")
+            .read_text()
+            .format(trailer_id="demo_001")
+        )
+        print("\nrunning: retention_curve.sql for demo_001")
+        result = await session.call_tool("run_query", {"query": retention_sql})
+        text = result.content[0].text if result.content else ""
+        print(f"first 300 chars of result:\n{text[:300]}")
 
     return 0
 

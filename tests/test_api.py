@@ -3,12 +3,11 @@
 """
 
 import json
-import shutil
 
 import pytest
 from fastapi.testclient import TestClient
 
-from api.main import GROUND_TRUTH_PATH, REPORTS_DIR, app
+from api.main import app
 
 client = TestClient(app)
 

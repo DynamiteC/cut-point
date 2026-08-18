@@ -48,4 +48,4 @@ Format: `Phase N | status | gate command | last result | commit hash`
 - Phase 6 | pending | `make test-report` | not started | -
 - Phase 7 | blocked | `make demo` | reaches live analyst model call, fails with clean MissingCredentialError (no GCP ADC) -- see BLOCKERS.md | (pending commit)
 - Phase 8 | done | `make api-test` | 5/5 tests pass (trailers, analyze+report round-trip, html, 404, cors) | (pending commit)
-- Phase 9 | pending | `make verify-all` | not started | -
+- Phase 9 | done | `make verify-all` | ruff clean, 26/26 tests pass, preflight-report exits 0, repo hygiene passed | (pending commit)

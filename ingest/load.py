@@ -11,7 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -51,7 +51,7 @@ def save_checkpoint(trailer_id: str, rows_loaded: int) -> None:
 
 def event_to_row(evt: dict) -> tuple:
     return (
-        datetime.fromtimestamp(evt["event_ts"], tz=timezone.utc),
+        datetime.fromtimestamp(evt["event_ts"], tz=UTC),
         evt["trailer_id"],
         evt["session_id"],
         evt["cohort"],

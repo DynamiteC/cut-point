@@ -9,8 +9,8 @@ GET  /trailers                -> known trailer ids from data/ground_truth.json
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware

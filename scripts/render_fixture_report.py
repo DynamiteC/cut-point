@@ -13,8 +13,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from agent.cutpoint_agent.schemas import DirectorsNotes  # noqa: E402
-from report.render import render_html, render_markdown  # noqa: E402
+from agent.cutpoint_agent.schemas import DirectorsNotes
+from report.render import render_html, render_markdown
 
 FIXTURE_PATH = REPO_ROOT / "tests" / "fixtures" / "directors_notes_fixture.json"
 OUT_DIR = REPO_ROOT / "data" / "reports"

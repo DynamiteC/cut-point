@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import AsyncGenerator
 
 from google import genai
 from google.adk.agents import BaseAgent

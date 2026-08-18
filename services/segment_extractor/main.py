@@ -101,7 +101,7 @@ def extract(req: ExtractRequest) -> ExtractResponse:
         "make_zero",
         str(clip_path),
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     duration_mismatch = (
         clip_path.exists() and abs(ffprobe_duration(str(clip_path)) - clip_duration) > 0.5
     )
@@ -123,7 +123,7 @@ def extract(req: ExtractRequest) -> ExtractResponse:
             "aac",
             str(clip_path),
         ]
-        result = subprocess.run(cmd_reencode, capture_output=True, text=True)
+        result = subprocess.run(cmd_reencode, capture_output=True, text=True, check=False)
         if result.returncode != 0:
             raise HTTPException(status_code=500, detail=f"ffmpeg failed: {result.stderr[-500:]}")
 
