@@ -37,6 +37,36 @@ Format: `Phase N | status | gate command | last result | commit hash`
   specifies it explicitly and its replacement (Workflow) is called out as not yet compatible
   with LlmAgent sub-agents (which the analyst step requires).
 
+## Post-phase-9 hardening (ship-ready-review)
+
+A ship-ready-review pass (security/error-handling/production-readiness focus) found and fixed
+three issues before this was considered ready for /ship-ready-review + /devils-advocate
+sign-off:
+
+1. **Path traversal in the segment extractor** (`services/segment_extractor/main.py`):
+   `video_path` was accepted with no root confinement -- an absolute path anywhere on the
+   filesystem, or a `../`-escaping relative path, would be processed by ffmpeg/ffprobe. Fixed
+   by resolving the path and requiring it be inside `data/videos/` (`Path.is_relative_to`);
+   returns 400 otherwise. Covered by
+   `test_extract_path_traversal_outside_videos_dir_rejected`.
+2. **Unvalidated `trailer_id` on the API facade** (`api/main.py`): `trailer_id` flows into
+   filesystem paths (`data/reports/{trailer_id}.json`) and, in the live pipeline, into SQL query
+   text the analyst LLM constructs from `sql/analysis/*.sql` templates -- an unvalidated value
+   is both a path-traversal and a prompt/SQL-injection-shaped risk at the API boundary. Fixed by
+   constraining `trailer_id` to `^[a-zA-Z0-9_-]{1,64}$` on `POST /analyze` and both
+   `GET /report/{trailer_id}` routes. Covered by `test_analyze_rejects_path_traversal_trailer_id`
+   and `test_report_rejects_path_traversal_trailer_id`.
+3. **String-interpolated cohort list in `ingest/verify_data.py`**: cohorts came from
+   developer-controlled `ground_truth.json` (low risk) but were spliced into SQL text via
+   f-string rather than the parameterized-query pattern used everywhere else in the file;
+   switched to a `%(cohorts)s` tuple parameter for consistency and defense in depth.
+
+Accepted, not fixed (explicitly required by TASK.md / inherent to the hackathon prototype
+scope, tracked for a real deployment): CORS is open and no auth exists on any API endpoint
+(TASK.md section 8 requires "CORS open"), so a production deployment would need auth + rate
+limiting in front of `/analyze` before it could be exposed publicly, since each call triggers
+real Vertex AI spend.
+
 ## Phases
 
 - Phase 0 | done | `uv sync && make preflight-report` | exits 0, PASS/FAIL table with fixes shown | 372285e

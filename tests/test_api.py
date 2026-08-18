@@ -68,6 +68,16 @@ def test_report_html_renders_from_json():
     assert "<svg" in response.text
 
 
+def test_analyze_rejects_path_traversal_trailer_id():
+    response = client.post("/analyze", json={"trailer_id": "../../etc/passwd"})
+    assert response.status_code == 422
+
+
+def test_report_rejects_path_traversal_trailer_id():
+    response = client.get("/report/..%2F..%2Fetc%2Fpasswd")
+    assert response.status_code in (404, 422)
+
+
 def test_report_not_found_returns_404():
     response = client.get("/report/nonexistent_trailer")
     assert response.status_code == 404

@@ -22,16 +22,17 @@ TABLES = ["raw_playback_events", "trailers"]
 
 
 def viewers_at_second(client, trailer_id: str, cohorts: list[str], second: int) -> int:
-    cohort_list = ",".join(f"'{c}'" for c in cohorts)
-    query = f"""
+    query = """
         SELECT uniqExact(session_id)
         FROM raw_playback_events
         WHERE trailer_id = %(trailer_id)s
-          AND cohort IN ({cohort_list})
+          AND cohort IN %(cohorts)s
           AND second_offset = %(second)s
           AND event_type = 'heartbeat'
     """
-    return client.command(query, parameters={"trailer_id": trailer_id, "second": second})
+    return client.command(
+        query, parameters={"trailer_id": trailer_id, "cohorts": tuple(cohorts), "second": second}
+    )
 
 
 def main() -> int:

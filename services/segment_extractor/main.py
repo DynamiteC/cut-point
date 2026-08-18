@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 CLIPS_DIR = REPO_ROOT / "data" / "clips"
+VIDEOS_DIR = (REPO_ROOT / "data" / "videos").resolve()
 
 app = FastAPI(title="CutPoint Segment Extractor")
 
@@ -59,6 +60,13 @@ def resolve_local_path(video_path: str) -> Path:
     path = Path(video_path)
     if not path.is_absolute():
         path = REPO_ROOT / video_path
+    path = path.resolve()
+
+    if not path.is_relative_to(VIDEOS_DIR):
+        raise HTTPException(
+            status_code=400,
+            detail=f"video_path must resolve inside {VIDEOS_DIR} -- refusing path outside the videos directory",
+        )
     if not path.exists():
         raise HTTPException(status_code=404, detail=f"video not found at {path}")
     return path

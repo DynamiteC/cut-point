@@ -71,6 +71,20 @@ def test_extract_boundary_clip_near_end_of_file():
     assert abs(body["duration_s"] - 3.0) <= 0.5
 
 
+def test_extract_path_traversal_outside_videos_dir_rejected():
+    response = client.post(
+        "/extract",
+        json={"video_path": "/etc/passwd", "start_s": 0, "end_s": 5},
+    )
+    assert response.status_code == 400
+
+    response = client.post(
+        "/extract",
+        json={"video_path": "../../../../etc/passwd", "start_s": 0, "end_s": 5},
+    )
+    assert response.status_code == 400
+
+
 def test_extract_missing_video_returns_404():
     response = client.post(
         "/extract",
