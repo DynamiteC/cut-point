@@ -47,6 +47,27 @@ Unblock: install the Google Cloud SDK, run `gcloud auth application-default logi
 `GOOGLE_CLOUD_PROJECT` and `GOOGLE_CLOUD_LOCATION` in `.env`, enable the Vertex AI API on that
 project, then re-run `make preflight` and `make demo`.
 
+## Known limitations found by devils-advocate review (not credential blockers, but real gaps)
+
+**The TLS/secure ClickHouse Cloud connection path has never actually run.** Every test and demo
+run in this environment uses `CLICKHOUSE_SECURE=false` against the local standalone ClickHouse
+binary (see above). The `secure=True, verify=True` branch in `ingest/clickhouse_client.py`,
+`scripts/preflight.py`, and `agent/cutpoint_agent/mcp.py` (via `CLICKHOUSE_SECURE` env passthrough
+to `mcp-clickhouse`) is exercised by neither the local dev environment nor CI here. Unblock: run
+`make mcp-smoke` and `make test-analysis` once against a real ClickHouse Cloud service with
+`CLICKHOUSE_SECURE=true` before trusting the TLS path in a real deployment.
+
+**The stand-in demo video has no narrative connection to the synthetic cliff seconds.**
+`data/videos/demo_001.mp4` (see `scripts/fetch_sample_video.sh`) is a looped 10s Creative-Commons
+animation clip with no scene changes correlated to the injected cliffs at seconds 22/47/68. Even
+once Vertex AI credentials are configured, `make demo`'s diagnostician output for THIS specific
+video will describe arbitrary frames rather than a coherent story matching "why viewers left at
+second 47" -- the pipeline mechanics are real, but the demo's causal narrative will only be
+genuinely coherent against an actual trailer video where cuts and cohort drop-off correlate.
+Unblock: replace `data/videos/demo_001.mp4` with a real trailer (or re-cut the synthetic
+generator's injected-cliff seconds to align with actual scene changes in the stand-in video) for
+a demo where the "WHY" story is real, not just mechanically produced.
+
 ## What IS fully working on this machine
 
 Phases 0, 1, 2, 3 (all against the local ClickHouse stand-in described above), 4 (segment

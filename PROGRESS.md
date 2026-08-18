@@ -67,6 +67,53 @@ scope, tracked for a real deployment): CORS is open and no auth exists on any AP
 limiting in front of `/analyze` before it could be exposed publicly, since each call triggers
 real Vertex AI spend.
 
+## Post-hardening devils-advocate pass
+
+A devils-advocate pass raised five concerns. Two were fixed; three are documented limitations
+inherent to the TASK.md-mandated design or the credential-free build environment (see
+BLOCKERS.md for the latter two):
+
+1. **[Fixed] Circular validation of detector thresholds.** `changepoints.sql`'s thresholds
+   (z-score > 3, drop_pct >= 0.03, cohort-attribution factor 0.5) were tuned against the exact
+   3 synthetic trailers the detector is graded on, and `MAX_FALSE_POSITIVES = 2` in
+   `tests/test_detector.py` was never actually exercised because the generator never produced an
+   organic (non-injected) false cliff -- the test was structurally incapable of catching an
+   over-sensitive detector. Fixed by adding a fourth trailer, `demo_control` (see
+   `ingest/generate.py`), with ZERO injected cliffs -- pure baseline decay + per-second noise --
+   and a new test, `test_changepoints_false_positive_rate_on_control_trailer`, that asserts the
+   detector flags at most `MAX_FALSE_POSITIVES` cliffs on data its thresholds were never fitted
+   to. Result: 0 false positives on the control trailer, a genuine (non-circular) signal that
+   the detector is not simply overfit to the three graded fixtures.
+2. **[Documented, see BLOCKERS.md] Stand-in demo video has no narrative connection to the
+   injected cliff seconds.** Even with live Vertex AI credentials, `data/videos/demo_001.mp4`
+   is a looped 10s Creative-Commons animation clip with no scene changes correlated to seconds
+   22/47/68 -- so the diagnostician's "on_screen"/"hypothesis" output for this specific demo
+   video would describe arbitrary frames, not a coherent causal story. The pipeline mechanics
+   (SQL -> extraction -> Gemini call -> report) are real and would produce a genuinely useful
+   WHY narrative against an actual trailer where cuts and cliffs correlate; only the *content*
+   of this specific stand-in video is disconnected from the synthetic retention data.
+3. **[Documented, see BLOCKERS.md] The TLS/secure ClickHouse connection path is never
+   exercised.** All local testing uses `CLICKHOUSE_SECURE=false` against the local ClickHouse
+   binary; the `secure=True, verify=True` code path used for real ClickHouse Cloud has never
+   actually run in this environment.
+4. **[Accepted tradeoff, not a defect] The analyst step reports quantitative findings (which
+   seconds are cliffs, exact drop_pct/z_score) via LLM transcription of MCP tool output into a
+   pydantic schema** (`agent/cutpoint_agent/steps/analyst.py`), not code-level parsing of the
+   `run_query` tool's JSON response. `output_schema` validates shape/type, not that the reported
+   numbers exactly match what ClickHouse returned -- an LLM transcription error (misreading a
+   row, transposing a value) would not be caught by schema validation alone. This is inherent to
+   TASK.md section 7's own mandated design (`analyst` MUST be an `LlmAgent` with the
+   mcp-clickhouse toolset and `output_schema=AnalysisResult`), not a deviation introduced during
+   this build, so it was not changed. A production hardening path worth calling out for future
+   work: parse `run_query`'s JSON response deterministically in code (as `extractor` already
+   does for its HTTP calls) and reserve the LLM turn for cases that genuinely need judgment.
+5. **[Accepted tradeoff, already documented above] BaseAgent instead of LlmAgent for
+   extractor/diagnostician/reporter reduces the number of LLM-visible reasoning turns an
+   `adk web`/`adk run` trace shows** (only `analyst` is a full LLM turn). This was a deliberate
+   determinism/testability tradeoff explained in the "Agent design deviation" note above; noted
+   here only because a hackathon demo optimizing for "looks agentic" might prefer more visible
+   LLM turns even at the cost of the determinism guarantee TASK.md rule 6 asks for.
+
 ## Phases
 
 - Phase 0 | done | `uv sync && make preflight-report` | exits 0, PASS/FAIL table with fixes shown | 372285e

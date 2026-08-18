@@ -31,9 +31,15 @@ TRAILER_SPECS = {
     "demo_001": {"duration_s": 90, "sessions": 50_000},
     "demo_002": {"duration_s": 120, "sessions": 55_000},
     "demo_003": {"duration_s": 75, "sessions": 45_000},
+    # Control trailer: NO injected cliffs, pure baseline decay + noise. Exists so
+    # tests/test_detector.py can assert a genuine, non-circular false-positive
+    # rate on data the detector's thresholds were never tuned against (see
+    # PROGRESS.md "Post-phase-9 hardening" for why this matters).
+    "demo_control": {"duration_s": 60, "sessions": 40_000},
 }
 
 # Injected ground-truth cliffs: elevated exit probability at `second` for `cohorts`.
+# demo_control intentionally has no entry -- it is the false-positive control group.
 INJECTED_CLIFFS = {
     "demo_001": [
         {"second": 22, "drop_pct": 0.18, "cohorts": ["13-17", "18-24"]},
@@ -48,6 +54,7 @@ INJECTED_CLIFFS = {
         {"second": 15, "drop_pct": 0.17, "cohorts": ["13-17", "18-24", "25-34"]},
         {"second": 50, "drop_pct": 0.19, "cohorts": ["45+"]},
     ],
+    "demo_control": [],
 }
 
 BASE_EXIT_HAZARD = 0.012  # per-second baseline exit probability, tuned for ~35% end retention

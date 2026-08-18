@@ -8,6 +8,8 @@ are not the agent's query path.
 
 from pathlib import Path
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SQL_DIR = REPO_ROOT / "sql" / "analysis"
 
@@ -46,6 +48,20 @@ def test_changepoints_recovers_every_injected_cliff(clickhouse_client, ground_tr
             f"{trailer_id}: too many false positives {false_positives} "
             f"(max {MAX_FALSE_POSITIVES})"
         )
+
+
+def test_changepoints_false_positive_rate_on_control_trailer(clickhouse_client, ground_truth):
+    """demo_control has zero injected cliffs (see ingest/generate.py) -- unlike the
+    other trailers, the detector's thresholds were never tuned against this data,
+    so this is a genuine (non-circular) false-positive check rather than the
+    detector grading its own homework.
+    """
+    if "demo_control" not in ground_truth:
+        pytest.skip("data/ground_truth.json predates demo_control -- run make generate-data load")
+    detected = run_changepoints(clickhouse_client, "demo_control")
+    assert len(detected) <= MAX_FALSE_POSITIVES, (
+        f"demo_control (no injected cliffs) triggered {len(detected)} false positives: {detected}"
+    )
 
 
 def test_changepoints_affected_cohorts_match_ground_truth(clickhouse_client, ground_truth):
