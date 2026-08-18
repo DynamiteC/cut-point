@@ -48,6 +48,7 @@ async def run_live(trailer_id: str) -> dict:
     runner = InMemoryRunner(agent=root_agent, app_name="cutpoint")
     session = await runner.session_service.create_session(
         app_name="cutpoint", user_id="cli", state={
+            "trailer_id": trailer_id,
             "video_path": video_path,
             "title": trailer_id.replace("_", " ").title(),
             "duration_s": duration_s,

@@ -46,6 +46,6 @@ Format: `Phase N | status | gate command | last result | commit hash`
 - Phase 4 | done | `make extractor-test` | 5/5 tests pass (10s clip, boundary 3s clip, 404, gs:// 501) | 41d6a1f
 - Phase 5 | done | `make test-agent` + dry-run pipeline print | 6/6 tests pass (mocked Gemini + extractor), dry-run prints 4-step plan | (pending commit)
 - Phase 6 | pending | `make test-report` | not started | -
-- Phase 7 | pending | `make demo` | not started | -
+- Phase 7 | blocked | `make demo` | reaches live analyst model call, fails with clean MissingCredentialError (no GCP ADC) -- see BLOCKERS.md | (pending commit)
 - Phase 8 | pending | `make api-test` | not started | -
 - Phase 9 | pending | `make verify-all` | not started | -

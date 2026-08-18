@@ -25,6 +25,13 @@ Cloud hostname, `CLICKHOUSE_PORT=8443`, `CLICKHOUSE_SECURE=true`, `CLICKHOUSE_VE
 Phase 7 (`make demo`) still requires live Gemini/Vertex AI (see below) even though ClickHouse
 itself is available locally.
 
+Verified: `make demo` runs data generation, starts the segment extractor service, opens a real
+MCP session, and reaches the analyst agent's first live model call, which fails with a clean
+`MissingCredentialError` pointing at `gcloud auth application-default login` and
+`GOOGLE_CLOUD_PROJECT` -- confirming every other part of the pipeline (session state wiring,
+mcp-clickhouse stdio connection, extractor service startup) works and the ONLY blocker is
+Vertex AI credentials.
+
 ## Live Vertex AI / Gemini
 
 Missing: `gcloud` CLI is not installed, so there is no Application Default Credentials (ADC), no
