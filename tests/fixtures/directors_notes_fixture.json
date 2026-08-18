@@ -1,0 +1,33 @@
+{
+  "trailer_id": "demo_001",
+  "title": "Demo One",
+  "duration_s": 90,
+  "analyzed_at": "2026-08-19T00:00:00Z",
+  "overall_retention_end": 0.35,
+  "milestone_funnel": {
+    "reached_25pct": 0.7,
+    "reached_50pct": 0.53,
+    "reached_75pct": 0.42,
+    "completed": 0.35
+  },
+  "cliffs": [
+    {
+      "second": 47,
+      "drop_pct": 0.22,
+      "affected_cohorts": ["18-24", "25-34"],
+      "z_score": -17.4,
+      "clip_path": "data/clips/demo_001_47.mp4",
+      "on_screen": "a sudden tonal shift into a jump-scare reveal",
+      "hypothesis": "the villain reveal spoils the twist for younger viewers",
+      "severity": 4,
+      "recommendations": [
+        {
+          "action": "replace_shot",
+          "target_range_s": [42, 52],
+          "rationale": "the villain reveal spoils the twist; recommend replace_shot around second 47."
+        }
+      ]
+    }
+  ],
+  "executive_summary": "demo_001 loses the most viewers at second 47 (22.0% drop among 18-24, 25-34): the villain reveal spoils the twist for younger viewers. 1 cliff(s) total flagged for recut review."
+}

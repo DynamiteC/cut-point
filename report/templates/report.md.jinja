@@ -1,0 +1,34 @@
+# Director's Notes: {{ notes.title }}
+
+**Trailer ID:** {{ notes.trailer_id }}
+**Duration:** {{ notes.duration_s }}s
+**Analyzed:** {{ notes.analyzed_at }}
+**Overall retention at end:** {{ "%.1f"|format(notes.overall_retention_end * 100) }}%
+
+## Executive Summary
+
+{{ notes.executive_summary }}
+
+## Milestone Funnel
+
+{% for milestone, fraction in notes.milestone_funnel.items() -%}
+- {{ milestone }}: {{ "%.1f"|format(fraction * 100) }}%
+{% endfor %}
+
+## Retention Cliffs
+
+{% for cliff in notes.cliffs -%}
+### Second {{ cliff.second }} ({{ "%.1f"|format(cliff.drop_pct * 100) }}% drop, z={{ "%.1f"|format(cliff.z_score) }})
+
+- **Affected cohorts:** {{ cliff.affected_cohorts|join(", ") }}
+- **On screen:** {{ cliff.on_screen }}
+- **Hypothesis:** {{ cliff.hypothesis }}
+- **Severity:** {{ cliff.severity }}/5
+- **Clip:** {{ cliff.clip_path }}
+
+**Recut recommendations:**
+{% for rec in cliff.recommendations -%}
+- {{ rec.action }} (seconds {{ rec.target_range_s[0] }}-{{ rec.target_range_s[1] }}): {{ rec.rationale }}
+{% endfor %}
+
+{% endfor %}
