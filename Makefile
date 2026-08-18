@@ -10,16 +10,16 @@ preflight-report:
 	$(UV) python scripts/preflight.py --report-only
 
 schema:
-	$(UV) python ingest/apply_schema.py
+	$(UV) python -m ingest.apply_schema
 
 generate-data:
-	$(UV) python ingest/generate.py --seed 42
+	$(UV) python -m ingest.generate --seed 42
 
 load:
-	$(UV) python ingest/load.py
+	$(UV) python -m ingest.load
 
 verify-data:
-	$(UV) python ingest/verify_data.py
+	$(UV) python -m ingest.verify_data
 
 test-analysis:
 	$(UV) pytest tests/test_detector.py -v
