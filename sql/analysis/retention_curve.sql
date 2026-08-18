@@ -26,4 +26,3 @@ SELECT
 FROM per_second AS p
 INNER JOIN baseline AS b ON p.cohort = b.cohort
 ORDER BY cohort, second_offset
-;

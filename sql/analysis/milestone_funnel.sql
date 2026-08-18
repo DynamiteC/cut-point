@@ -11,7 +11,7 @@ per_session AS (
     SELECT
         session_id,
         windowFunnel(86400)(
-            event_ts,
+            toDateTime(event_ts),
             second_offset >= (SELECT duration_s FROM trailer_duration) * 0.25,
             second_offset >= (SELECT duration_s FROM trailer_duration) * 0.50,
             second_offset >= (SELECT duration_s FROM trailer_duration) * 0.75,
@@ -26,18 +26,17 @@ totals AS (
     SELECT count() AS total_sessions FROM per_session
 )
 SELECT
-    'reached_25pct' AS milestone, countIf(funnel_level >= 1) / total_sessions AS fraction
+    'reached_25pct' AS milestone, countIf(funnel_level >= 1) / any(total_sessions) AS fraction
 FROM per_session, totals
 UNION ALL
 SELECT
-    'reached_50pct' AS milestone, countIf(funnel_level >= 2) / total_sessions AS fraction
+    'reached_50pct' AS milestone, countIf(funnel_level >= 2) / any(total_sessions) AS fraction
 FROM per_session, totals
 UNION ALL
 SELECT
-    'reached_75pct' AS milestone, countIf(funnel_level >= 3) / total_sessions AS fraction
+    'reached_75pct' AS milestone, countIf(funnel_level >= 3) / any(total_sessions) AS fraction
 FROM per_session, totals
 UNION ALL
 SELECT
-    'completed' AS milestone, countIf(funnel_level >= 4) / total_sessions AS fraction
+    'completed' AS milestone, countIf(funnel_level >= 4) / any(total_sessions) AS fraction
 FROM per_session, totals
-;

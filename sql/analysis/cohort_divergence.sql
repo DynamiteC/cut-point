@@ -34,4 +34,3 @@ FROM normalized
 GROUP BY second_offset
 ORDER BY cohort_spread DESC
 LIMIT 20
-;

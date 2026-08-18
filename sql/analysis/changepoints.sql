@@ -2,7 +2,9 @@
 -- Aggregates all cohorts into an overall per-second retention curve, computes a
 -- robust z-score (median absolute deviation) over the second-to-second delta,
 -- and flags seconds where the drop is both statistically unusual and large enough
--- to matter (drop_pct >= 3%).
+-- to matter (drop_pct >= 3%). affected_cohorts lists only cohorts whose own
+-- per-cohort drop at that second is at least half the overall drop (i.e. cohorts
+-- that actually contributed to the cliff, not every cohort with data at that second).
 -- Params: {trailer_id}
 WITH overall AS (
     SELECT
@@ -13,41 +15,60 @@ WITH overall AS (
     GROUP BY second_offset
     ORDER BY second_offset
 ),
-baseline AS (
-    SELECT avg(viewers) AS baseline_viewers
-    FROM overall
-    WHERE second_offset <= 2
-),
 deltas AS (
     SELECT
         second_offset,
         viewers,
+        lagInFrame(viewers, 1, viewers) OVER (ORDER BY second_offset) AS prev_viewers,
         viewers - lagInFrame(viewers, 1, viewers) OVER (ORDER BY second_offset) AS delta,
         (lagInFrame(viewers, 1, viewers) OVER (ORDER BY second_offset) - viewers)
             / (lagInFrame(viewers, 1, viewers) OVER (ORDER BY second_offset) + 1) AS drop_pct
     FROM overall
 ),
-stats AS (
+med AS (
+    SELECT median(delta) AS med_delta FROM deltas
+),
+mad AS (
+    SELECT median(abs(d.delta - m.med_delta)) AS mad_delta
+    FROM deltas AS d, med AS m
+),
+per_cohort AS (
     SELECT
-        median(delta) AS med_delta,
-        medianAbsDeviation(delta) AS mad_delta
-    FROM deltas
-)
-SELECT
-    d.second_offset AS second,
-    d.drop_pct AS drop_pct,
-    (d.delta - s.med_delta) / (s.mad_delta * 1.4826 + 1) AS z_score,
-    groupArray(cohort_hits.cohort) AS affected_cohorts
-FROM deltas AS d
-CROSS JOIN stats AS s
-LEFT JOIN (
-    SELECT cohort, second_offset
+        cohort,
+        second_offset,
+        uniqMerge(viewers_state) AS viewers
     FROM cutpoint.mv_second_viewers
     WHERE trailer_id = '{trailer_id}'
-) AS cohort_hits ON cohort_hits.second_offset = d.second_offset
-WHERE abs((d.delta - s.med_delta) / (s.mad_delta * 1.4826 + 1)) > 3
-  AND d.drop_pct >= 0.03
-GROUP BY d.second_offset, d.drop_pct, z_score
+    GROUP BY cohort, second_offset
+),
+per_cohort_delta AS (
+    SELECT
+        cohort,
+        second_offset,
+        (lagInFrame(viewers, 1, viewers) OVER (PARTITION BY cohort ORDER BY second_offset) - viewers)
+            / (lagInFrame(viewers, 1, viewers) OVER (PARTITION BY cohort ORDER BY second_offset) + 1)
+            AS cohort_drop_pct
+    FROM per_cohort
+),
+flagged AS (
+    SELECT
+        d.second_offset AS second,
+        d.drop_pct AS drop_pct,
+        (d.delta - m.med_delta) / (mad.mad_delta * 1.4826 + 1) AS z_score
+    FROM deltas AS d
+    CROSS JOIN med AS m
+    CROSS JOIN mad AS mad
+    WHERE abs((d.delta - m.med_delta) / (mad.mad_delta * 1.4826 + 1)) > 3
+      AND d.drop_pct >= 0.03
+)
+SELECT
+    f.second AS second,
+    f.drop_pct AS drop_pct,
+    f.z_score AS z_score,
+    groupArray(pcd.cohort) AS affected_cohorts
+FROM flagged AS f
+INNER JOIN per_cohort_delta AS pcd
+    ON pcd.second_offset = f.second AND pcd.cohort_drop_pct >= f.drop_pct * 0.5
+GROUP BY f.second, f.drop_pct, f.z_score
 ORDER BY drop_pct DESC
 LIMIT 10
-;
