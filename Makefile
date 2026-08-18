@@ -35,6 +35,7 @@ test-agent:
 
 test-report:
 	$(UV) pytest tests/test_report.py -v
+	$(UV) python scripts/render_fixture_report.py
 
 demo:
 	$(UV) python scripts/run_demo.py

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Director's Notes: {{ notes.title }}</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --surface: #1a1d24;
+    --accent: #e8a63d;
+    --text: #e8e8ea;
+    --muted: #9a9ea8;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+  }
+  h1 { font-size: 1.8rem; margin-bottom: 0.2rem; }
+  .meta { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
+  .summary {
+    background: var(--surface);
+    border-left: 4px solid var(--accent);
+    padding: 1rem 1.25rem;
+    border-radius: 6px;
+    margin-bottom: 2rem;
+  }
+  .curve-wrap { position: relative; margin-bottom: 2rem; }
+  .cliff-card {
+    background: var(--surface);
+    border-radius: 8px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
+    border: 1px solid #2a2e37;
+  }
+  .cliff-card h3 { margin-top: 0; color: var(--accent); }
+  .cohort-tag {
+    display: inline-block;
+    background: #2a2e37;
+    color: var(--text);
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    margin-right: 0.3rem;
+  }
+  .rec { margin-top: 0.75rem; padding-left: 1rem; border-left: 2px solid var(--accent); }
+  .milestone-row { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 2rem; }
+  .milestone { background: var(--surface); border-radius: 8px; padding: 0.75rem 1.25rem; }
+  .milestone .value { font-size: 1.4rem; color: var(--accent); font-weight: 600; }
+</style>
+</head>
+<body>
+  <h1>Director's Notes: {{ notes.title }}</h1>
+  <div class="meta">
+    trailer_id={{ notes.trailer_id }} | duration={{ notes.duration_s }}s |
+    analyzed {{ notes.analyzed_at }} | overall retention at end
+    {{ "%.1f"|format(notes.overall_retention_end * 100) }}%
+  </div>
+
+  <div class="summary">{{ notes.executive_summary }}</div>
+
+  <div class="milestone-row">
+    {% for milestone, fraction in notes.milestone_funnel.items() %}
+    <div class="milestone">
+      <div class="value">{{ "%.0f"|format(fraction * 100) }}%</div>
+      <div>{{ milestone }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="curve-wrap">
+    <svg viewBox="0 0 760 220" width="100%" height="220" role="img" aria-label="Retention curve">
+      <polyline points="{{ svg_polyline }}" fill="none" stroke="#e8a63d" stroke-width="2" />
+      {% for cliff in notes.cliffs %}
+      <line x1="{{ cliff_marker_x(cliff.second) }}" y1="0" x2="{{ cliff_marker_x(cliff.second) }}"
+            y2="220" stroke="#ff5c5c" stroke-width="1.5" stroke-dasharray="4,3" />
+      {% endfor %}
+    </svg>
+  </div>
+
+  {% for cliff in notes.cliffs %}
+  <div class="cliff-card">
+    <h3>Second {{ cliff.second }} -- {{ "%.1f"|format(cliff.drop_pct * 100) }}% drop
+      (z={{ "%.1f"|format(cliff.z_score) }})</h3>
+    <div>
+      {% for cohort in cliff.affected_cohorts %}<span class="cohort-tag">{{ cohort }}</span>{% endfor %}
+    </div>
+    <p><strong>On screen:</strong> {{ cliff.on_screen }}</p>
+    <p><strong>Hypothesis:</strong> {{ cliff.hypothesis }}</p>
+    <p><strong>Severity:</strong> {{ cliff.severity }}/5</p>
+    <p><strong>Clip:</strong> {{ cliff.clip_path }}</p>
+    {% for rec in cliff.recommendations %}
+    <div class="rec">
+      <strong>{{ rec.action }}</strong> (seconds {{ rec.target_range_s[0] }}-{{ rec.target_range_s[1] }}):
+      {{ rec.rationale }}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</body>
+</html>
