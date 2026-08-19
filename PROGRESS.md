@@ -121,8 +121,14 @@ BLOCKERS.md for the latter two):
 - Phase 2 | done | `make test-analysis` | 6/6 tests pass, all cliffs recovered within +/-2s, 0 false positives | e9dff4e
 - Phase 3 | done | `make mcp-smoke` | stdio session lists tools, SELECT 1 and retention_curve.sql both succeed via run_query | d8be05b
 - Phase 4 | done | `make extractor-test` | 5/5 tests pass (10s clip, boundary 3s clip, 404, gs:// 501) | 41d6a1f
-- Phase 5 | done | `make test-agent` + dry-run pipeline print | 6/6 tests pass (mocked Gemini + extractor), dry-run prints 4-step plan | (pending commit)
-- Phase 6 | pending | `make test-report` | not started | -
-- Phase 7 | blocked | `make demo` | reaches live analyst model call, fails with clean MissingCredentialError (no GCP ADC) -- see BLOCKERS.md | (pending commit)
-- Phase 8 | done | `make api-test` | 5/5 tests pass (trailers, analyze+report round-trip, html, 404, cors) | (pending commit)
-- Phase 9 | done | `make verify-all` | ruff clean, 26/26 tests pass, preflight-report exits 0, repo hygiene passed | (pending commit)
+- Phase 5 | done | `make test-agent` + dry-run pipeline print | 6/6 tests pass (mocked Gemini + extractor), dry-run prints 4-step plan | 6e8e813
+- Phase 6 | done | `make test-report` | golden-file test passes, fixture html contains curve + cliff cards | abbdc04
+- Phase 7 | blocked | `make demo` | reaches live analyst model call, fails with clean MissingCredentialError (no GCP ADC) -- see BLOCKERS.md | 100faf7
+- Phase 8 | done | `make api-test` | 5/5 tests pass (trailers, analyze+report round-trip, html, 404, cors) | 4def357
+- Phase 9 | done | `make verify-all` | ruff clean, 30/30 tests pass, preflight-report exits 0, repo hygiene passed | 8fc5707
+
+## Post-phase-9 hardening
+
+- ship-ready-review fixes | done | `make test` (targeted) | path traversal, unvalidated trailer_id, SQL string interpolation all fixed | 352a78b
+- devils-advocate fixes | done | `uv run pytest -q` | added demo_control false-positive trailer, documented TLS/demo-video/analyst-transcription tradeoffs | fd36342
+- final merge to main | done | `git log origin/main` | feature/cutpoint-prototype merged (no-ff) and pushed to origin/main | ab7bbb9
