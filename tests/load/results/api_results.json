@@ -1,0 +1,60 @@
+{
+  "trailers_endpoint": [
+    {
+      "p50_ms": 8.97,
+      "p95_ms": 19.47,
+      "p99_ms": 34.99,
+      "error_rate": 0.0,
+      "total_requests": 100,
+      "concurrency": 10
+    },
+    {
+      "p50_ms": 31.73,
+      "p95_ms": 88.96,
+      "p99_ms": 101.69,
+      "error_rate": 0.0,
+      "total_requests": 100,
+      "concurrency": 50
+    },
+    {
+      "p50_ms": 59.23,
+      "p95_ms": 96.3,
+      "p99_ms": 108.48,
+      "error_rate": 0.0,
+      "total_requests": 100,
+      "concurrency": 100
+    }
+  ],
+  "report_endpoint": [
+    {
+      "p50_ms": 10.7,
+      "p95_ms": 13.62,
+      "p99_ms": 17.6,
+      "error_rate": 0.0,
+      "total_requests": 100,
+      "concurrency": 10
+    },
+    {
+      "p50_ms": 39.13,
+      "p95_ms": 97.1,
+      "p99_ms": 116.07,
+      "error_rate": 0.0,
+      "total_requests": 100,
+      "concurrency": 50
+    },
+    {
+      "p50_ms": 97.24,
+      "p95_ms": 174.95,
+      "p99_ms": 182.97,
+      "error_rate": 0.0,
+      "total_requests": 100,
+      "concurrency": 100
+    }
+  ],
+  "analyze_endpoint": [],
+  "threshold_check": {
+    "target": "p99 < 2000ms at 50 concurrent /trailers",
+    "actual_p99_ms": 101.69,
+    "passed": true
+  }
+}

@@ -37,7 +37,14 @@ actually watch the frames at that moment."
 - Mention mcp-clickhouse is read-only by construction -- the agent literally cannot write to
   production data.
 
-## Beat 5: Impact close (2:40-3:00)
+## Beat 4.5: Resilience proof (2:40-2:55)
+
+"This isn't just happy-path correct. [show load-chart.png] Our API handles 100 concurrent
+requests with p99 under 200ms. [show chaos-report.md table] And when things go wrong, kill the
+extractor mid-pipeline, corrupt a video file, simulate a network partition, the system fails
+LOUD and SAFE, never silently, never with corrupt data. Four chaos scenarios, four passes."
+
+## Beat 5: Impact close (2:55-3:00)
 
 "A trailer editor gets a second-by-second, cohort-aware cut list in under two minutes instead of
 guessing from aggregate view-through rate. This is a prototype today; the same pipeline runs

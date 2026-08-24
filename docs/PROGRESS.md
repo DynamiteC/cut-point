@@ -126,6 +126,11 @@ BLOCKERS.md for the latter two):
 - Phase 7 | blocked | `make demo` | reaches live analyst model call, fails with clean MissingCredentialError (no GCP ADC) -- see BLOCKERS.md | 100faf7
 - Phase 8 | done | `make api-test` | 7/7 tests pass (trailers, analyze+report round-trip, html, path-traversal x2, 404, cors) | 352a78b
 - Phase 9 | done | `make verify-all` | ruff clean, 30/30 tests pass, preflight-report exits 0, repo hygiene passed | 8fc5707
+- Phase 10.1 | done | `make smoke` | all 6 checks pass (ClickHouse, MCP tools, extractor health, API /trailers, pipeline dry-run, cleanup) | pending
+- Phase 10.2 | done | `make load-test` | p99 at 50 concurrent /trailers: 101.69ms (threshold 2000ms), 100k batch: 267,891 rows/sec, load-chart.png generated | pending
+- Phase 10.3 | done | `make stress-test` | API and extractor concurrency ceilings measured, stress-report.md generated | pending
+- Phase 10.4 | done | `make chaos-test` | 4/4 chaos scenarios pass (extractor kill, wrong port, corrupt video, Gemini timeout) | pending
+- Phase 10.5 | done | `make soak-test-short` | 30-min soak, memory growth 0.9% (threshold 20%), no leaked handles | pending
 
 ## Post-phase-9 hardening
 

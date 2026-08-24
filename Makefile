@@ -51,3 +51,25 @@ verify-all:
 	$(UV) pytest -v
 	$(MAKE) preflight-report
 	$(UV) python scripts/verify_repo_hygiene.py
+
+.PHONY: smoke
+smoke:
+	bash scripts/smoke.sh
+
+.PHONY: stress-test
+stress-test:
+	$(UV) python tests/stress/find_breaking_point.py
+
+.PHONY: chaos-test
+chaos-test:
+	$(UV) pytest tests/chaos/ -v
+
+.PHONY: load-test
+load-test:
+	$(UV) python tests/load/ingest_load.py
+	$(UV) python tests/load/api_load.py
+	$(UV) python scripts/load_report.py
+
+.PHONY: soak-test-short
+soak-test-short:
+	$(UV) python tests/soak/short_soak.py --minutes 30

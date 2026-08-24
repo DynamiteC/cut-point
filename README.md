@@ -5,65 +5,286 @@ A deterministic multi-step AI agent that fuses per-second trailer audience-reten
 exactly WHERE a trailer loses viewers and WHY, then emits timestamped "Director's Notes" with
 recut recommendations.
 
-The loop: ClickHouse answers WHERE (second 47, cohort 18-24, 22% retention cliff) -> Gemini
-multimodal answers WHY (tone shift / spoiler / pacing collapse in those exact frames) -> the
+The loop: ClickHouse answers WHERE (second 47, cohort 18-24, 22% retention cliff), Gemini
+multimodal answers WHY (tone shift / spoiler / pacing collapse in those exact frames), the
 agent renders Director's Notes + a recut plan.
 
 Built for the Agentic Cinema hackathon (Google Cloud, ClickHouse track).
 
+---
+
+## Table of Contents
+
+1. [Quickstart](#quickstart)
+2. [High-Level Design (HLD)](#high-level-design)
+3. [Low-Level Design (LLD)](#low-level-design)
+4. [Repository Layout](#repository-layout)
+5. [Environment Variables](#environment-variables)
+6. [Phase Gates](#phase-gates)
+7. [Performance and Resilience](#performance-and-resilience)
+8. [Development Notes](#development-notes)
+9. [Documentation Index](#documentation-index)
+10. [License](#license)
+
+---
+
 ## Quickstart
 
-Five commands from clone to a rendered report (assumes ClickHouse and GCP credentials are set
-in `.env` -- see [Environment variables](#environment-variables)):
+Five commands from clone to a rendered report (assumes ClickHouse and GCP credentials in `.env`):
 
 ```bash
 uv sync
 make schema
 make generate-data load
-make extractor-test              # sanity check the segment extractor works locally
+make smoke                       # pre-commit sanity check (under 60s)
 make demo                        # generates the report at data/reports/demo_001.html
 ```
 
-Run `make preflight` at any time to see exactly which prerequisites are missing and how to fix
-each one.
+Run `make preflight` at any time to see which prerequisites are missing and how to fix each one.
 
-## Architecture
+Run `make smoke` before every push as a fast sanity gate.
 
-See [docs/architecture.md](docs/architecture.md) for the full write-up and a mermaid diagram.
-In short:
+---
+
+## High-Level Design
+
+### System Context
+
+CutPoint operates as a backend analytics pipeline. A frontend (built separately via Replit Agent,
+see `docs/frontend-spec.md`) calls the REST facade. The pipeline runs synchronously per request.
 
 ```
-ClickHouse Cloud --(mcp-clickhouse, read-only)--> analyst
-                                                      |
-                                                      v
-                                                  extractor --(ffmpeg)--> clip
-                                                      |
-                                                      v
-                                            diagnostician --(Gemini via Vertex AI)--> diagnosis
-                                                      |
-                                                      v
-                                                  reporter --> Director's Notes (JSON/MD/HTML)
+User -> Replit Frontend -> CutPoint REST API (FastAPI)
+                                |
+                                v
+                     CutPoint Agent (Google ADK SequentialAgent)
+                     ├── [1] Analyst: ClickHouse via mcp-clickhouse (read-only)
+                     ├── [2] Extractor: ffmpeg via segment extractor service
+                     ├── [3] Diagnostician: Gemini via Vertex AI
+                     └── [4] Reporter: Pydantic -> JSON/MD/HTML
+
+External dependencies:
+  - ClickHouse Cloud (or local binary): per-second retention analytics
+  - Vertex AI Gemini: multimodal video understanding
+  - ffmpeg: frame-accurate clip extraction
 ```
 
-The pipeline is a Google ADK `SequentialAgent`: step order is fixed by code, never chosen by an
-LLM. The LLM is used only for perception (what's happening in a video clip) and language
-(phrasing recommendations).
+### Design Principles
 
-## Repository layout
+1. **Determinism over autonomy**: The pipeline order is fixed by code (`SequentialAgent`),
+   never chosen by an LLM. The model is used only for perception and language.
+
+2. **Read-only analytics access**: All agent-side ClickHouse queries go through `mcp-clickhouse`
+   (read-only by construction). The write path (`ingest/`, `make schema`) uses
+   `clickhouse-connect` directly and is structurally separated.
+
+3. **Fail loud, never corrupt**: Every failure surfaces as a specific, actionable error.
+   No silent stubs, no partial writes to `data/reports/`. Proven by chaos tests (Phase 10.4).
+
+4. **Independently testable steps**: Each pipeline step is a pure function wrapped in an ADK
+   `BaseAgent`. Tests mock at the function boundary, not the agent boundary.
+
+5. **Cost-aware by default**: Gemini is called only for perception (per-cliff clip diagnosis).
+   Load tests cap `/analyze` at concurrency 3 to avoid quota burn.
+
+### Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  CutPoint Agent (Google ADK, Python)                            │
+│  SequentialAgent: deterministic 4-step pipeline                 │
+│                                                                 │
+│  ┌─────────────┐    ┌────────────┐    ┌──────────────┐         │
+│  │  [1] analyst │ -> │[2] extractor│ -> │[3] diagnosti-│         │
+│  │  LlmAgent   │    │ BaseAgent  │    │  cian        │         │
+│  │  mcp-CH     │    │ HTTP+ffmpeg│    │  Gemini      │         │
+│  └──────┬──────┘    └─────┬──────┘    └──────┬───────┘         │
+│         │                  │                  │                 │
+│         v                  v                  v                 │
+│                     ┌────────────┐                              │
+│                     │[4] reporter│ -> Director's Notes           │
+│                     │ BaseAgent  │    (JSON / MD / HTML)         │
+│                     └────────────┘                              │
+└─────────────────────────────────────────────────────────────────┘
+         │                    │                   │
+         v                    v                   v
+  ┌──────────────┐   ┌───────────────┐   ┌──────────────────┐
+  │ClickHouse    │   │ Segment       │   │ Vertex AI        │
+  │(mcp-clickhouse│   │ Extractor     │   │ Gemini           │
+  │ read-only)   │   │ (FastAPI+ffmpeg)│   │ (multimodal)     │
+  └──────────────┘   └───────────────┘   └──────────────────┘
+```
+
+### Data Flow (single /analyze request)
+
+1. Frontend calls `POST /analyze {trailer_id}`
+2. API facade invokes `agent/run_pipeline.py`
+3. **Analyst**: `LlmAgent` with `mcp-clickhouse` toolset executes 4 SQL templates:
+   - `retention_curve.sql`: per-second, per-cohort normalized retention
+   - `changepoints.sql`: MAD-based z-score cliff detection (z > 3, drop >= 3%)
+   - `cohort_divergence.sql`: surface demographic-specific cliffs
+   - `milestone_funnel.sql`: 25/50/75/complete via `windowFunnel()`
+4. **Extractor**: For each cliff in `AnalysisResult`, clips [second-5, second+5] via HTTP
+5. **Diagnostician**: Sends each clip to Gemini with structured prompt, gets `Diagnosis`
+6. **Reporter**: Merges into `DirectorsNotes`, writes JSON/MD/HTML to `data/reports/`
+7. API returns `{"report_id": trailer_id}`
+
+---
+
+## Low-Level Design
+
+### Module Decomposition
+
+```
+agent/
+├── cutpoint_agent/
+│   ├── agent.py           # root_agent: SequentialAgent with 4 sub-agents
+│   ├── schemas.py         # Pydantic models (AnalysisResult, Diagnosis, DirectorsNotes)
+│   ├── mcp.py             # mcp-clickhouse stdio session management
+│   └── steps/
+│       ├── analyst.py     # LlmAgent + McpToolset (the only LLM-driven step)
+│       ├── extractor.py   # BaseAgent wrapping run_extraction()
+│       ├── diagnostician.py  # BaseAgent wrapping diagnose_clip() per cliff
+│       └── reporter.py    # BaseAgent wrapping build_directors_notes()
+├── run_pipeline.py        # CLI driver (--dry-run support)
+
+api/
+├── main.py                # FastAPI: /trailers, /analyze, /report/{id}, /report/{id}/html
+
+ingest/
+├── apply_schema.py        # DDL: tables, materialized views (idempotent)
+├── generate.py            # Synthetic event generator with injected ground-truth cliffs
+├── load.py                # Batch loader with checkpointing
+├── verify_data.py         # Post-load validation
+├── clickhouse_client.py   # Client factory (ONLY place clickhouse-connect is used)
+
+services/segment_extractor/
+├── main.py                # FastAPI: /health, /extract (ffmpeg stream-copy with re-encode fallback)
+
+report/
+├── render.py              # Jinja2: JSON -> Markdown + self-contained HTML (inline SVG, no CDN)
+├── template.md.j2
+├── template.html.j2
+
+sql/analysis/
+├── retention_curve.sql    # Per-second per-cohort retention (normalized against baseline)
+├── changepoints.sql       # MAD z-score cliff detector with cohort attribution
+├── cohort_divergence.sql  # Identifies demographic-specific cliffs
+├── milestone_funnel.sql   # windowFunnel() showcase (25/50/75/complete)
+```
+
+### Key Data Models (Pydantic)
+
+```python
+class AnalysisResult:
+    trailer_id: str
+    overall_retention_end: float
+    milestone_funnel: dict[str, float]  # {"50%": 30.0, ...}
+    cliffs: list[CliffPoint]            # detected retention cliffs
+
+class CliffPoint:
+    second: int              # exact second of the cliff
+    drop_pct: float          # percentage drop at this second
+    affected_cohorts: list[str]  # cohorts driving the drop
+    z_score: float           # statistical significance
+
+class Diagnosis:
+    second: int
+    on_screen: str           # what Gemini sees in the clip
+    hypothesis: str          # why this caused viewer churn
+    severity: int            # 1-5
+    confidence: float        # 0.0-1.0
+
+class DirectorsNotes:
+    trailer_id, title, duration_s, analyzed_at
+    overall_retention_end: float
+    milestone_funnel: dict[str, float]
+    cliffs: list[CliffFinding]  # full finding with recommendations
+    executive_summary: str
+```
+
+### ClickHouse Schema
+
+```sql
+-- Raw events: one row per session per second of watch time
+CREATE TABLE raw_playback_events (
+    event_ts        DateTime64(3, 'UTC'),
+    trailer_id      LowCardinality(String),
+    session_id      UUID,
+    cohort          LowCardinality(String),   -- "13-17", "18-24", "25-34", "35-44", "45+"
+    region          LowCardinality(String),
+    device          LowCardinality(String),
+    second_offset   UInt16,
+    event_type      Enum8('start'=1,'heartbeat'=2,'exit'=3,'complete'=4)
+) ENGINE = MergeTree
+ORDER BY (trailer_id, cohort, second_offset, event_ts)
+
+-- Materialized view for fast per-second viewer counts
+CREATE MATERIALIZED VIEW mv_second_viewers (
+    trailer_id      LowCardinality(String),
+    cohort          LowCardinality(String),
+    second_offset   UInt16,
+    viewers_state   AggregateFunction(uniq, UUID)
+) ENGINE = AggregatingMergeTree
+ORDER BY (trailer_id, cohort, second_offset)
+AS SELECT
+    trailer_id, cohort, second_offset,
+    uniqState(session_id) AS viewers_state
+FROM raw_playback_events
+GROUP BY trailer_id, cohort, second_offset
+```
+
+### Cliff Detection Algorithm (changepoints.sql)
+
+1. Compute per-second overall viewer count (all cohorts merged)
+2. Calculate second-to-second delta
+3. Compute Median Absolute Deviation (MAD) for robustness
+4. Flag seconds where `|z_score| > 3` AND `drop_pct >= 3%`
+5. For each flagged second, attribute cohorts whose own per-cohort drop >= 50% of the overall drop
+6. Return top 10 cliffs ordered by severity
+
+### Error Handling Strategy
+
+| Failure Mode | Behavior | Proven By |
+|-------------|----------|-----------|
+| ClickHouse unreachable | Actionable error within 10s timeout | Chaos test 2 |
+| Segment extractor down | Clear error naming the service, no partial report | Chaos test 1 |
+| Corrupt video file | Per-clip error, pipeline continues for other clips | Chaos test 3 |
+| Gemini timeout/5xx | Graceful per-cliff failure, blast-radius contained | Chaos test 4 |
+| Missing credentials | `MissingCredentialError` with fix instructions | Preflight check |
+
+### API Contract
+
+| Endpoint | Method | Request | Response |
+|----------|--------|---------|----------|
+| `/trailers` | GET | - | `["demo_001", "demo_002", ...]` |
+| `/analyze` | POST | `{"trailer_id": "demo_001"}` | `{"report_id": "demo_001"}` |
+| `/report/{trailer_id}` | GET | - | DirectorsNotes JSON |
+| `/report/{trailer_id}/html` | GET | - | Self-contained HTML report |
+
+Security: `trailer_id` validated against `^[a-zA-Z0-9_-]{1,64}$` to prevent path traversal
+and SQL injection. CORS open per hackathon spec (would need auth in production).
+
+---
+
+## Repository Layout
 
 | Path | Purpose |
-|---|---|
-| `sql/` | ClickHouse schema, materialized views, and the four analysis query templates |
-| `ingest/` | Synthetic data generator + loader (the only place `clickhouse-connect` is used directly) |
-| `agent/` | The Google ADK agent: `cutpoint_agent/agent.py` is the `root_agent` entrypoint |
-| `services/segment_extractor/` | FastAPI + ffmpeg service that clips video around a retention cliff |
-| `api/` | Thin REST facade for the frontend |
-| `report/` | Renders Director's Notes JSON into Markdown and self-contained HTML |
-| `scripts/` | Preflight checks, MCP smoke test, sample video fetcher, demo runner |
-| `tests/` | Unit and integration tests (mocked Gemini/extractor where noted) |
-| `docs/` | Architecture doc, Replit frontend build prompt, demo script, submission checklist |
+|------|---------|
+| `agent/` | Google ADK agent: `cutpoint_agent/agent.py` is the `root_agent` entrypoint |
+| `api/` | Thin REST facade (FastAPI) |
+| `ingest/` | Synthetic data generator + ClickHouse loader (the only write path) |
+| `services/segment_extractor/` | FastAPI + ffmpeg clip extraction service |
+| `report/` | Jinja2 renderer: JSON to Markdown and HTML |
+| `sql/` | ClickHouse schema, materialized views, 4 analysis query templates |
+| `scripts/` | Preflight, smoke test, MCP smoke, demo runner, load report generator |
+| `tests/` | Unit, integration, load, stress, chaos, and soak tests |
+| `docs/` | Architecture, demo script, frontend spec, performance reports, progress |
+| `data/` | Generated events, videos, clips, reports (gitignored except fixtures) |
 
-## Environment variables
+---
+
+## Environment Variables
 
 Copy `.env.example` to `.env` and fill in every value:
 
@@ -72,47 +293,96 @@ cp .env.example .env
 ```
 
 | Variable | Purpose |
-|---|---|
-| `CLICKHOUSE_HOST` / `CLICKHOUSE_PORT` / `CLICKHOUSE_USER` / `CLICKHOUSE_PASSWORD` / `CLICKHOUSE_DATABASE` | ClickHouse Cloud (or any ClickHouse server) connection |
-| `CLICKHOUSE_SECURE` / `CLICKHOUSE_VERIFY` | TLS settings for the ClickHouse connection |
-| `GOOGLE_GENAI_USE_VERTEXAI` | Must be `TRUE` -- the product calls Gemini through Vertex AI, never the direct Gemini API or Anthropic |
-| `GOOGLE_CLOUD_PROJECT` / `GOOGLE_CLOUD_LOCATION` | GCP project and region for Vertex AI |
-| `GEMINI_MODEL` | Gemini model id, validated against your project by `make preflight` |
-| `SEGMENT_EXTRACTOR_URL` | Where the segment extractor service is reachable (local or Cloud Run) |
-| `GCS_BUCKET` | Optional; blank means clips are stored locally under `data/clips/` |
-| `API_PORT` | Port for the REST facade (`api/main.py`) |
+|----------|---------|
+| `CLICKHOUSE_HOST` / `PORT` / `USER` / `PASSWORD` / `DATABASE` | ClickHouse connection |
+| `CLICKHOUSE_SECURE` / `CLICKHOUSE_VERIFY` | TLS settings |
+| `GOOGLE_GENAI_USE_VERTEXAI` | Must be `TRUE` (Gemini via Vertex AI, never direct) |
+| `GOOGLE_CLOUD_PROJECT` / `GOOGLE_CLOUD_LOCATION` | GCP project and region |
+| `GEMINI_MODEL` | Model id, validated by `make preflight` |
+| `SEGMENT_EXTRACTOR_URL` | Extractor service URL (local or Cloud Run) |
+| `GCS_BUCKET` | Optional: blank = clips stored locally |
+| `API_PORT` | Port for the REST facade |
 
-## Running the full phase gates
+---
 
-Each phase in `PROGRESS.md` has a gate command:
+## Phase Gates
+
+Each phase has a make target that must pass before proceeding:
 
 ```bash
-make preflight-report   # phase 0
-make generate-data load && make verify-data   # phase 1
-make test-analysis      # phase 2
-make mcp-smoke          # phase 3
-make extractor-test     # phase 4
-make test-agent         # phase 5
-make test-report        # phase 6
-make demo               # phase 7 (needs live ClickHouse + Vertex AI)
-make api-test           # phase 8
-make verify-all         # phase 9
+make preflight-report   # Phase 0:  environment check
+make generate-data load && make verify-data  # Phase 1: data pipeline
+make test-analysis      # Phase 2:  cliff detection accuracy
+make mcp-smoke          # Phase 3:  MCP integration
+make extractor-test     # Phase 4:  ffmpeg clip extraction
+make test-agent         # Phase 5:  agent pipeline (mocked)
+make test-report        # Phase 6:  report rendering
+make demo               # Phase 7:  end-to-end (needs live credentials)
+make api-test           # Phase 8:  REST facade
+make verify-all         # Phase 9:  full suite (ruff + pytest + hygiene)
+make smoke              # Phase 10.1: pre-commit sanity (<60s)
+make load-test          # Phase 10.2: throughput + latency benchmarks
+make stress-test        # Phase 10.3: find breaking point
+make chaos-test         # Phase 10.4: graceful degradation (4 scenarios)
+make soak-test-short    # Phase 10.5: 30-min memory leak check
 ```
 
-See `PROGRESS.md` for current status per phase and `BLOCKERS.md` for anything that requires
-credentials not available in a given environment.
+See `docs/PROGRESS.md` for current status and `docs/BLOCKERS.md` for credential requirements.
 
-## Development notes
+---
 
-- This repository does not build a frontend. `docs/frontend-spec.md` is a complete, pasteable
-  build prompt for Replit Agent.
-- All agent-side ClickHouse access goes through the official `mcp-clickhouse` MCP server (see
-  `agent/cutpoint_agent/mcp.py`), which is read-only by design. Direct `clickhouse-connect` use
-  is confined to `ingest/` (the write/load path) and `make schema`.
-- Mocks live only in `tests/`. Where cloud credentials are absent, the code degrades with an
-  explicit, actionable error (e.g. `MissingCredentialError: set CLICKHOUSE_HOST in .env`), never
-  a silent stub.
+## Performance and Resilience
+
+Phase 10 delivers production-readiness evidence across five test categories:
+
+| Test Type | Key Finding | Gate |
+|-----------|-------------|------|
+| **Smoke** | All system components alive in <60s | `make smoke` |
+| **Load** | p99 API latency 102ms at 50 concurrent, 268k rows/sec ingest | `make load-test` |
+| **Stress** | Concurrency ceiling measured before degradation | `make stress-test` |
+| **Chaos** | 4/4 failure scenarios: fails loud, never corrupts | `make chaos-test` |
+| **Soak** | <1% memory growth over 30 min (threshold 20%) | `make soak-test-short` |
+
+Full reports with charts: [docs/perf/README.md](docs/perf/README.md)
+
+---
+
+## Development Notes
+
+- **Pre-commit check**: Run `make smoke` before every push. It starts ClickHouse, verifies
+  all services respond, and runs the pipeline in dry-run mode in under 60 seconds.
+- **Testing**: `uv run pytest -v` runs the full suite (36 tests). Chaos tests validate
+  failure modes. Load/stress/soak run as standalone scripts via Makefile targets.
+- **No frontend in this repo**: `docs/frontend-spec.md` is a complete build prompt for
+  Replit Agent. The REST facade at `api/main.py` provides the stable contract.
+- **Read-only agent access**: All agent ClickHouse queries go through `mcp-clickhouse`.
+  Direct `clickhouse-connect` is confined to `ingest/` and `make schema`.
+- **Mocks live only in tests**: No silent stubs. Missing credentials produce
+  `MissingCredentialError` with fix instructions.
+- **Local ClickHouse**: A standalone binary at `.local-clickhouse/clickhouse` handles all
+  local development. See `docs/BLOCKERS.md` for how to switch to ClickHouse Cloud.
+
+---
+
+## Documentation Index
+
+| Document | Purpose |
+|----------|---------|
+| [docs/architecture.md](docs/architecture.md) | Full architecture with mermaid diagram |
+| [docs/PROGRESS.md](docs/PROGRESS.md) | Phase-by-phase build ledger |
+| [docs/BLOCKERS.md](docs/BLOCKERS.md) | Credential/infrastructure requirements |
+| [docs/TASK.md](docs/TASK.md) | Original build spec (the agent's contract) |
+| [docs/demo-video-script.md](docs/demo-video-script.md) | 3-minute demo video script |
+| [docs/frontend-spec.md](docs/frontend-spec.md) | Replit Agent build prompt for the UI |
+| [docs/submission-checklist.md](docs/submission-checklist.md) | Hackathon submission items |
+| [docs/perf/README.md](docs/perf/README.md) | Performance and resilience test results |
+| [docs/perf/load-report.md](docs/perf/load-report.md) | Load test data with chart |
+| [docs/perf/stress-report.md](docs/perf/stress-report.md) | Breaking point analysis |
+| [docs/perf/chaos-report.md](docs/perf/chaos-report.md) | Failure scenario matrix |
+| [docs/perf/soak-report.md](docs/perf/soak-report.md) | Memory stability trace |
+
+---
 
 ## License
 
-MIT -- see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).

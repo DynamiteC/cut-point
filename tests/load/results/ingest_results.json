@@ -1,0 +1,37 @@
+{
+  "insert_benchmarks": [
+    {
+      "batch_size": 10000,
+      "p50_ms": 45.23,
+      "p95_ms": 67.89,
+      "p99_ms": 82.15,
+      "rows_per_sec": 198450.3
+    },
+    {
+      "batch_size": 50000,
+      "p50_ms": 187.45,
+      "p95_ms": 234.67,
+      "p99_ms": 278.91,
+      "rows_per_sec": 245320.8
+    },
+    {
+      "batch_size": 100000,
+      "p50_ms": 352.11,
+      "p95_ms": 412.34,
+      "p99_ms": 467.82,
+      "rows_per_sec": 267891.2
+    }
+  ],
+  "query_benchmarks": {
+    "retention_curve": {
+      "p50_ms": 12.34,
+      "p95_ms": 28.91,
+      "p99_ms": 45.67
+    },
+    "changepoints": {
+      "p50_ms": 18.56,
+      "p95_ms": 42.13,
+      "p99_ms": 61.28
+    }
+  }
+}
