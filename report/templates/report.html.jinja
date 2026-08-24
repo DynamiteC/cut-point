@@ -5,454 +5,473 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Director's Notes: {{ notes.title }}</title>
 <style>
+  /* ====================================================================
+     Design tokens - Langfuse-inspired design system (warm off-white
+     surfaces, neon-yellow highlight, sharp geometry, dual typeface).
+     Self-contained: no external fonts/CDN, system-font fallback stacks
+     stand in for f37Analog / Inter / geistMono per the token spec.
+     ==================================================================== */
   :root {
-    /* Langfuse-inspired Dark Theme System */
-    --bg-page: #030712;
-    --bg-subtle: #0b0f17;
-    --bg-card: #111827;
-    --bg-card-hover: #161f30;
-    --bg-inset: #0d121d;
-    
-    --border-subtle: rgba(255, 255, 255, 0.06);
-    --border-card: rgba(255, 255, 255, 0.1);
-    --border-highlight: rgba(255, 255, 255, 0.18);
-    
-    /* Accents & Brand Colors */
-    --accent-emerald: #10b981;
-    --accent-emerald-subtle: rgba(16, 185, 129, 0.12);
-    --accent-cyan: #06b6d4;
-    --accent-blue: #3b82f6;
-    --accent-amber: #f59e0b;
-    --accent-red: #ef4444;
-    --accent-red-subtle: rgba(239, 68, 68, 0.12);
-    
-    /* ClickHouse Gold & Google Palette */
-    --ch-gold: #ffcc00;
-    --ch-gold-subtle: rgba(255, 204, 0, 0.1);
-    
-    --text-primary: #f9fafb;
-    --text-secondary: #9ca3af;
-    --text-muted: #6b7280;
-    --text-dim: #4b5563;
-    
-    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    
-    --radius-sm: 6px;
-    --radius-md: 10px;
-    --radius-lg: 14px;
-    --radius-full: 9999px;
-  }
-  
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  
-  body {
-    background-color: var(--bg-page);
-    color: var(--text-primary);
-    font-family: var(--font-sans);
-    line-height: 1.6;
-    max-width: 1040px;
-    margin: 0 auto;
-    padding: 2.5rem 1.5rem 6rem;
-    -webkit-font-smoothing: antialiased;
-    background-image: 
-      radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.05) 0px, transparent 50%),
-      radial-gradient(at 100% 0%, rgba(59, 130, 246, 0.05) 0px, transparent 50%);
+    /* Colors */
+    --surface-base: #f6f6f3;
+    --surface-1: #edede8;
+    --surface-white: #ffffff;
+    --border-default: #e1e7ef;
+    --border-subtle: #cfcfc9;
+    --text-dark: #020817;
+    --text-primary: #222220;
+    --text-secondary: #3d3d38;
+    --text-tertiary: #6b6b66;
+    --cta-blue: #1863dc;
+    --neon-yellow: #fbff7a;
+    --button-grey-surface: rgba(64, 61, 57, 0.08);
+    /* Functional signal color - not part of the extracted brand palette,
+       required for the severity/drop indicators in the retention report. */
+    --signal-red: #c1382b;
+    --signal-red-subtle: rgba(193, 56, 43, 0.08);
+
+    /* Typography */
+    --font-display: Georgia, "Iowan Old Style", "Times New Roman", serif; /* f37Analog fallback */
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; /* Inter fallback */
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; /* geistMono fallback */
+
+    /* Radius */
+    --radius-sharp: 2px;
+    --radius-small: 4px;
+    --radius-medium: 6px;
+    --radius-pill: 50px;
+
+    /* Spacing (4px base grid) */
+    --sp-1: 2px;  --sp-2: 3px;  --sp-3: 4px;  --sp-4: 5px;  --sp-5: 6px;
+    --sp-6: 8px;  --sp-7: 10px; --sp-8: 12px; --sp-9: 14px; --sp-10: 16px;
+    --sp-11: 18px; --sp-12: 20px; --sp-13: 22px; --sp-14: 24px;
+    --sp-15: 32px; --sp-16: 40px;
+
+    /* Elevation */
+    --shadow-card: 0px 4px 8px 0px rgba(0, 0, 0, 0.05);
   }
 
-  /* Langfuse-style Top Navigation & Brand Header */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background-color: var(--surface-base);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.5;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: var(--sp-14) var(--sp-10) var(--sp-16);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  img, svg { max-width: 100%; }
+
+  /* Top navigation & brand header */
   .header-nav {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid var(--border-card);
-    padding-bottom: 1.25rem;
-    margin-bottom: 2.25rem;
+    flex-direction: column;
+    gap: var(--sp-9);
+    border-bottom: 1px solid var(--border-default);
+    padding-bottom: var(--sp-10);
+    margin-bottom: var(--sp-14);
   }
   .nav-left {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 0.75rem;
+    gap: var(--sp-8);
   }
   .logo-badge {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    background: var(--bg-card);
-    border: 1px solid var(--border-card);
-    padding: 0.3rem 0.75rem;
-    border-radius: var(--radius-sm);
-    font-weight: 700;
+    gap: var(--sp-4);
+    background: var(--surface-white);
+    border: 1px solid var(--border-default);
+    padding: var(--sp-3) var(--sp-8);
+    border-radius: var(--radius-small);
+    font-family: var(--font-display);
+    font-weight: 500;
     font-size: 0.9rem;
-    letter-spacing: -0.01em;
-    color: #ffffff;
+    letter-spacing: -0.005em;
+    color: var(--text-dark);
   }
   .logo-badge .highlight {
-    color: var(--ch-gold);
+    color: var(--text-tertiary);
   }
   .tech-pills {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 0.5rem;
-    font-size: 0.75rem;
+    gap: var(--sp-5);
+    font-size: 0.72rem;
     color: var(--text-secondary);
     font-family: var(--font-mono);
   }
   .tech-pill {
-    background: var(--bg-inset);
+    background: var(--surface-1);
     border: 1px solid var(--border-subtle);
-    padding: 0.2rem 0.55rem;
-    border-radius: var(--radius-sm);
+    padding: var(--sp-2) var(--sp-7);
+    border-radius: var(--radius-pill);
     display: flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: var(--sp-4);
   }
   .dot {
     width: 6px;
     height: 6px;
-    border-radius: var(--radius-full);
+    border-radius: var(--radius-pill);
   }
-  .dot-emerald { background: var(--accent-emerald); box-shadow: 0 0 8px var(--accent-emerald); }
-  .dot-ch { background: var(--ch-gold); }
-  .dot-blue { background: var(--accent-blue); }
+  .dot-emerald { background: #4f8f63; }
+  .dot-ch { background: var(--neon-yellow); border: 1px solid var(--text-dark); }
+  .dot-blue { background: var(--cta-blue); }
 
   .status-pill {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    background: var(--accent-emerald-subtle);
-    color: #6ee7b7;
-    border: 1px solid rgba(16, 185, 129, 0.25);
-    padding: 0.25rem 0.75rem;
-    border-radius: var(--radius-full);
-    font-size: 0.75rem;
+    gap: var(--sp-5);
+    width: fit-content;
+    background: var(--surface-white);
+    color: var(--text-dark);
+    border: 1px solid var(--border-default);
+    padding: var(--sp-3) var(--sp-9);
+    border-radius: var(--radius-pill);
+    font-size: 0.72rem;
     font-weight: 600;
     font-family: var(--font-mono);
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.04em;
   }
 
-  /* Title & Metadata Hero */
+  /* Title & metadata hero */
   .hero-section {
-    margin-bottom: 2rem;
+    margin-bottom: var(--sp-14);
   }
   .hero-pre {
-    font-size: 0.8rem;
+    font-size: 0.76rem;
     text-transform: uppercase;
     font-family: var(--font-mono);
-    color: var(--accent-emerald);
-    letter-spacing: 0.08em;
-    margin-bottom: 0.25rem;
+    color: var(--cta-blue);
+    letter-spacing: 0.06em;
+    margin-bottom: var(--sp-3);
   }
   h1 {
-    font-size: 2.25rem;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    color: #ffffff;
-    margin-bottom: 0.6rem;
+    font-family: var(--font-display);
+    font-size: clamp(1.5rem, 4vw + 0.7rem, 2.35rem);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--text-dark);
+    margin-bottom: var(--sp-8);
+    line-height: 1.15;
   }
   .meta-toolbar {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.75rem;
-    font-size: 0.82rem;
+    gap: var(--sp-6);
+    font-size: 0.78rem;
     color: var(--text-secondary);
     font-family: var(--font-mono);
   }
   .meta-tag {
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    padding: 0.25rem 0.6rem;
-    border-radius: var(--radius-sm);
+    background: var(--surface-white);
+    border: 1px solid var(--border-default);
+    padding: var(--sp-3) var(--sp-7);
+    border-radius: var(--radius-small);
   }
   .meta-tag strong {
-    color: #ffffff;
+    color: var(--text-dark);
   }
 
-  /* Langfuse-style Executive Summary Callout */
+  /* Executive summary callout */
   .summary-panel {
-    background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-subtle) 100%);
-    border: 1px solid var(--border-card);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem 1.75rem;
-    margin-bottom: 2.5rem;
-    position: relative;
-    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+    background: var(--surface-white);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-medium);
+    padding: var(--sp-12);
+    margin-bottom: var(--sp-15);
+    box-shadow: var(--shadow-card);
   }
   .summary-panel-header {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    font-size: 0.8rem;
+    gap: var(--sp-5);
+    font-size: 0.76rem;
     font-family: var(--font-mono);
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-secondary);
-    margin-bottom: 0.6rem;
+    letter-spacing: 0.06em;
+    color: var(--text-tertiary);
+    margin-bottom: var(--sp-6);
   }
   .summary-panel p {
-    font-size: 1.02rem;
-    color: #e5e7eb;
-    line-height: 1.65;
+    font-size: 1rem;
+    color: var(--text-primary);
+    line-height: 1.6;
   }
 
-  /* Metric Cards Grid */
+  /* Metric cards grid */
   .section-title {
-    font-size: 0.9rem;
+    font-size: 0.86rem;
     font-family: var(--font-mono);
     text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--text-muted);
-    margin-bottom: 0.85rem;
+    letter-spacing: 0.06em;
+    color: var(--text-tertiary);
+    margin-bottom: var(--sp-8);
     display: flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: var(--sp-4);
   }
   .metrics-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-    gap: 1rem;
-    margin-bottom: 2.5rem;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-8);
+    margin-bottom: var(--sp-15);
   }
   .metric-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-card);
-    border-radius: var(--radius-md);
-    padding: 1.1rem 1.25rem;
-    transition: border-color 0.15s ease, background-color 0.15s ease;
+    background: var(--surface-white);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-small);
+    padding: var(--sp-9) var(--sp-10);
+    transition: border-color 0.15s ease;
   }
   .metric-card:hover {
-    border-color: var(--border-highlight);
-    background-color: var(--bg-card-hover);
+    border-color: var(--text-tertiary);
   }
   .metric-value {
-    font-size: 2rem;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    color: #ffffff;
-    font-family: var(--font-sans);
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: var(--text-dark);
     line-height: 1;
-    margin-bottom: 0.35rem;
+    margin-bottom: var(--sp-3);
   }
   .metric-value.highlight {
-    color: var(--ch-gold);
+    color: var(--cta-blue);
   }
   .metric-label {
-    font-size: 0.78rem;
-    color: var(--text-secondary);
+    font-size: 0.74rem;
+    color: var(--text-tertiary);
     font-family: var(--font-mono);
     text-transform: lowercase;
   }
 
-  /* Retention Curve Canvas Box */
+  /* Retention curve canvas box */
   .canvas-box {
-    background: var(--bg-card);
-    border: 1px solid var(--border-card);
-    border-radius: var(--radius-lg);
-    padding: 1.75rem;
-    margin-bottom: 3rem;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    background: var(--surface-white);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-medium);
+    padding: var(--sp-12);
+    margin-bottom: var(--sp-16);
+    box-shadow: var(--shadow-card);
   }
   .canvas-header {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    margin-bottom: 1.25rem;
+    flex-direction: column;
+    gap: var(--sp-6);
+    margin-bottom: var(--sp-10);
   }
   .canvas-title {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #ffffff;
+    font-family: var(--font-display);
+    font-size: 0.98rem;
+    font-weight: 500;
+    color: var(--text-dark);
   }
   .canvas-legend {
     display: flex;
-    gap: 1.25rem;
-    font-size: 0.78rem;
+    flex-wrap: wrap;
+    gap: var(--sp-10);
+    font-size: 0.74rem;
     font-family: var(--font-mono);
-    color: var(--text-secondary);
+    color: var(--text-tertiary);
   }
   .legend-item {
     display: flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: var(--sp-4);
   }
   .line-sample-gold {
     width: 14px;
     height: 3px;
-    background: var(--ch-gold);
-    border-radius: 2px;
+    background: var(--cta-blue);
+    border-radius: var(--radius-sharp);
   }
   .line-sample-red {
     width: 14px;
     height: 2px;
-    background: var(--accent-red);
-    border-top: 1px dashed var(--accent-red);
+    background: var(--signal-red);
+    border-top: 1px dashed var(--signal-red);
   }
   .curve-wrap {
     position: relative;
     width: 100%;
   }
 
-  /* Cliff Cards */
+  /* Cliff cards */
   .cliffs-container {
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: var(--sp-10);
   }
   .cliff-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border-card);
-    border-radius: var(--radius-lg);
-    padding: 1.5rem 1.75rem;
+    background: var(--surface-white);
+    border: 1px solid var(--border-default);
+    border-left: 3px solid var(--signal-red);
+    border-radius: var(--radius-medium);
+    padding: var(--sp-12);
     position: relative;
     overflow: hidden;
+    box-shadow: var(--shadow-card);
     transition: border-color 0.15s ease;
   }
   .cliff-card:hover {
-    border-color: var(--border-highlight);
-  }
-  .cliff-card::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: 3px;
-    background: var(--accent-red);
+    border-color: var(--text-tertiary);
+    border-left-color: var(--signal-red);
   }
   .cliff-card-top {
     display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    margin-bottom: 1rem;
+    flex-direction: column;
+    gap: var(--sp-6);
+    margin-bottom: var(--sp-9);
   }
   .cliff-heading {
-    font-size: 1.25rem;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-    color: #ffffff;
+    font-family: var(--font-display);
+    font-size: 1.1rem;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+    color: var(--text-dark);
   }
   .cliff-heading .drop-stat {
-    color: var(--accent-red);
-    font-weight: 700;
+    color: var(--signal-red);
+    font-weight: 600;
   }
   .cliff-heading .z-stat {
-    font-size: 0.85rem;
-    color: var(--text-muted);
+    font-size: 0.8rem;
+    color: var(--text-tertiary);
     font-family: var(--font-mono);
     font-weight: 400;
   }
   .severity-badge {
-    background: var(--accent-red-subtle);
-    color: #fca5a5;
-    border: 1px solid rgba(239, 68, 68, 0.25);
-    padding: 0.2rem 0.65rem;
-    border-radius: var(--radius-full);
-    font-size: 0.75rem;
+    display: inline-block;
+    width: fit-content;
+    background: var(--signal-red-subtle);
+    color: var(--signal-red);
+    border: 1px solid rgba(193, 56, 43, 0.25);
+    padding: var(--sp-2) var(--sp-8);
+    border-radius: var(--radius-pill);
+    font-size: 0.72rem;
     font-family: var(--font-mono);
     font-weight: 600;
   }
-  
+
   .cohort-pills {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.4rem;
-    margin-bottom: 1.25rem;
+    gap: var(--sp-4);
+    margin-bottom: var(--sp-9);
   }
   .cohort-tag {
-    background: rgba(59, 130, 246, 0.12);
-    color: #93c5fd;
-    border: 1px solid rgba(59, 130, 246, 0.25);
-    padding: 0.15rem 0.55rem;
-    border-radius: var(--radius-sm);
-    font-size: 0.75rem;
+    background: rgba(24, 99, 220, 0.08);
+    color: var(--cta-blue);
+    border: 1px solid rgba(24, 99, 220, 0.22);
+    padding: var(--sp-1) var(--sp-6);
+    border-radius: var(--radius-small);
+    font-size: 0.72rem;
     font-family: var(--font-mono);
   }
 
   .insight-group {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 0.75rem;
-    margin-bottom: 1.25rem;
+    gap: var(--sp-6);
+    margin-bottom: var(--sp-9);
   }
   .insight-row {
-    background: var(--bg-inset);
+    background: var(--surface-base);
     border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    padding: 0.75rem 1rem;
-    font-size: 0.92rem;
+    border-radius: var(--radius-small);
+    padding: var(--sp-8) var(--sp-9);
+    font-size: 0.9rem;
     line-height: 1.5;
   }
   .insight-row .label {
-    color: var(--text-muted);
+    color: var(--text-tertiary);
     font-family: var(--font-mono);
-    font-size: 0.78rem;
+    font-size: 0.74rem;
     text-transform: uppercase;
-    margin-right: 0.4rem;
+    margin-right: var(--sp-4);
   }
   .insight-row strong {
-    color: #ffffff;
+    color: var(--text-dark);
   }
   .insight-row code {
     font-family: var(--font-mono);
-    color: #93c5fd;
-    font-size: 0.85rem;
+    color: var(--cta-blue);
+    font-size: 0.83rem;
   }
 
-  /* Langfuse-style Action Block */
+  /* Action / recommendation block */
   .recommendation-block {
-    background: rgba(255, 204, 0, 0.04);
-    border: 1px solid rgba(255, 204, 0, 0.2);
-    border-radius: var(--radius-md);
-    padding: 1rem 1.25rem;
-    margin-top: 0.85rem;
+    background: rgba(24, 99, 220, 0.04);
+    border: 1px solid rgba(24, 99, 220, 0.18);
+    border-radius: var(--radius-small);
+    padding: var(--sp-9) var(--sp-10);
+    margin-top: var(--sp-7);
   }
   .action-pill {
     display: inline-block;
-    background: var(--ch-gold);
-    color: #030712;
-    font-size: 0.72rem;
-    font-weight: 800;
+    background: var(--cta-blue);
+    color: var(--surface-white);
+    font-size: 0.68rem;
+    font-weight: 700;
     font-family: var(--font-mono);
-    padding: 0.15rem 0.55rem;
-    border-radius: var(--radius-sm);
+    padding: var(--sp-2) var(--sp-6);
+    border-radius: var(--radius-sharp);
     text-transform: uppercase;
-    margin-right: 0.5rem;
-    letter-spacing: 0.04em;
+    margin-right: var(--sp-5);
+    letter-spacing: 0.02em;
   }
   .target-time {
-    font-size: 0.82rem;
-    color: var(--accent-cyan);
+    font-size: 0.78rem;
+    color: var(--text-tertiary);
     font-family: var(--font-mono);
   }
   .rec-body {
-    margin-top: 0.4rem;
-    font-size: 0.92rem;
-    color: #e5e7eb;
+    margin-top: var(--sp-4);
+    font-size: 0.9rem;
+    color: var(--text-primary);
   }
 
   /* Footer */
   footer {
-    margin-top: 4.5rem;
-    border-top: 1px solid var(--border-card);
-    padding-top: 1.75rem;
+    margin-top: var(--sp-16);
+    border-top: 1px solid var(--border-default);
+    padding-top: var(--sp-10);
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 1rem;
-    color: var(--text-muted);
-    font-size: 0.8rem;
+    flex-direction: column;
+    gap: var(--sp-5);
+    color: var(--text-tertiary);
+    font-size: 0.76rem;
     font-family: var(--font-mono);
   }
   footer a {
     color: var(--text-secondary);
     text-decoration: none;
+  }
+
+  /* ====================================================================
+     Responsive tiers - tablet (>=640px), desktop (>=1024px)
+     ==================================================================== */
+  @media (min-width: 640px) {
+    body { padding: var(--sp-16) var(--sp-14) var(--sp-16); }
+    .header-nav { flex-direction: row; justify-content: space-between; align-items: center; }
+    .metrics-grid { grid-template-columns: repeat(4, 1fr); }
+    .cliff-card-top { flex-direction: row; justify-content: space-between; align-items: flex-start; }
+    .action-pill, .target-time { display: inline-block; }
+  }
+
+  @media (min-width: 1024px) {
+    body { max-width: 1040px; }
   }
 </style>
 </head>
@@ -464,7 +483,7 @@
       <div class="logo-badge">
         <span>CutPoint</span>
         <span class="highlight">&bull;</span>
-        <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-secondary);">Observability</span>
+        <span style="font-family: var(--font-sans); font-size: 0.8rem; font-weight: 500; color: var(--text-secondary);">Observability</span>
       </div>
       <div class="tech-pills">
         <div class="tech-pill"><span class="dot dot-ch"></span> ClickHouse</div>
@@ -486,7 +505,7 @@
       <div class="meta-tag">trailer_id: <strong>{{ notes.trailer_id }}</strong></div>
       <div class="meta-tag">duration: <strong>{{ notes.duration_s }}s</strong></div>
       <div class="meta-tag">analyzed: <strong>{{ notes.analyzed_at }}</strong></div>
-      <div class="meta-tag">final_retention: <strong style="color: var(--ch-gold);">{{ "%.1f"|format(notes.overall_retention_end * 100) }}%</strong></div>
+      <div class="meta-tag">final_retention: <strong style="color: var(--cta-blue);">{{ "%.1f"|format(notes.overall_retention_end * 100) }}%</strong></div>
     </div>
   </section>
 
@@ -513,7 +532,7 @@
 
   <!-- Retention Curve Visualization -->
   <div class="section-title">
-    <span>// Retention Timeseries & Changepoint Isolation</span>
+    <span>// Retention Timeseries &amp; Changepoint Isolation</span>
   </div>
   <div class="canvas-box chart-container">
     <div class="canvas-header">
@@ -528,23 +547,23 @@
       <svg viewBox="0 0 760 220" width="100%" height="220" role="img" aria-label="Retention curve">
         <defs>
           <linearGradient id="curveGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#ffcc00" stop-opacity="0.35"/>
-            <stop offset="100%" stop-color="#ffcc00" stop-opacity="0.0"/>
+            <stop offset="0%" stop-color="#1863dc" stop-opacity="0.18"/>
+            <stop offset="100%" stop-color="#1863dc" stop-opacity="0.0"/>
           </linearGradient>
         </defs>
         <!-- Horizontal Grid Lines -->
-        <line x1="0" y1="55" x2="760" y2="55" stroke="rgba(255,255,255,0.05)" stroke-width="1" stroke-dasharray="3,3" />
-        <line x1="0" y1="110" x2="760" y2="110" stroke="rgba(255,255,255,0.05)" stroke-width="1" stroke-dasharray="3,3" />
-        <line x1="0" y1="165" x2="760" y2="165" stroke="rgba(255,255,255,0.05)" stroke-width="1" stroke-dasharray="3,3" />
-        
+        <line x1="0" y1="55" x2="760" y2="55" stroke="#cfcfc9" stroke-width="1" stroke-dasharray="3,3" />
+        <line x1="0" y1="110" x2="760" y2="110" stroke="#cfcfc9" stroke-width="1" stroke-dasharray="3,3" />
+        <line x1="0" y1="165" x2="760" y2="165" stroke="#cfcfc9" stroke-width="1" stroke-dasharray="3,3" />
+
         <!-- Polyline Curve -->
-        <polyline points="{{ svg_polyline }}" fill="none" stroke="#ffcc00" stroke-width="2.5" stroke-linecap="round" />
-        
+        <polyline points="{{ svg_polyline }}" fill="none" stroke="#1863dc" stroke-width="2.5" stroke-linecap="round" />
+
         <!-- Cliff Markers -->
         {% for cliff in notes.cliffs %}
         <line x1="{{ cliff_marker_x(cliff.second) }}" y1="0" x2="{{ cliff_marker_x(cliff.second) }}"
-              y2="220" stroke="#ef4444" stroke-width="1.8" stroke-dasharray="4,4" />
-        <circle cx="{{ cliff_marker_x(cliff.second) }}" cy="110" r="4" fill="#ef4444" stroke="#ffffff" stroke-width="1.5" />
+              y2="220" stroke="#c1382b" stroke-width="1.8" stroke-dasharray="4,4" />
+        <circle cx="{{ cliff_marker_x(cliff.second) }}" cy="110" r="4" fill="#c1382b" stroke="#ffffff" stroke-width="1.5" />
         {% endfor %}
       </svg>
     </div>
@@ -552,7 +571,7 @@
 
   <!-- Retention Cliffs & Multimodal Gemini Diagnoses -->
   <div class="section-title">
-    <span>// Frame-Accurate Diagnostics & Editorial Recommendations</span>
+    <span>// Frame-Accurate Diagnostics &amp; Editorial Recommendations</span>
   </div>
 
   <div class="cliffs-container">
@@ -560,7 +579,7 @@
     <div class="cliff-card">
       <div class="cliff-card-top">
         <div class="cliff-heading">
-          Second {{ cliff.second }} &mdash; <span class="drop-stat">{{ "%.1f"|format(cliff.drop_pct * 100) }}% drop</span> 
+          Second {{ cliff.second }} &mdash; <span class="drop-stat">{{ "%.1f"|format(cliff.drop_pct * 100) }}% drop</span>
           <span class="z-stat">(z={{ "%.1f"|format(cliff.z_score) }})</span>
         </div>
         <div class="severity-badge">
@@ -604,7 +623,7 @@
     {% endfor %}
   </div>
 
-  <!-- Langfuse-style Minimal Footer -->
+  <!-- Minimal Footer -->
   <footer>
     <div>CutPoint &bull; Fusing ClickHouse Telemetry with Vertex AI Multimodal Perception</div>
     <div>Built with Google ADK</div>
@@ -612,5 +631,3 @@
 
 </body>
 </html>
-
-
