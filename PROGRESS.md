@@ -124,7 +124,7 @@ BLOCKERS.md for the latter two):
 - Phase 5 | done | `make test-agent` + dry-run pipeline print | 6/6 tests pass (mocked Gemini + extractor), dry-run prints 4-step plan | 6e8e813
 - Phase 6 | done | `make test-report` | golden-file test passes, fixture html contains curve + cliff cards | abbdc04
 - Phase 7 | blocked | `make demo` | reaches live analyst model call, fails with clean MissingCredentialError (no GCP ADC) -- see BLOCKERS.md | 100faf7
-- Phase 8 | done | `make api-test` | 5/5 tests pass (trailers, analyze+report round-trip, html, 404, cors) | 4def357
+- Phase 8 | done | `make api-test` | 7/7 tests pass (trailers, analyze+report round-trip, html, path-traversal x2, 404, cors) | 352a78b
 - Phase 9 | done | `make verify-all` | ruff clean, 30/30 tests pass, preflight-report exits 0, repo hygiene passed | 8fc5707
 
 ## Post-phase-9 hardening
