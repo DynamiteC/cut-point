@@ -369,12 +369,9 @@ Full reports with charts: [docs/perf/README.md](docs/perf/README.md)
 
 | Document | Purpose |
 |----------|---------|
-| [docs/architecture.md](docs/architecture.md) | Full system architecture and multi-agent pipeline flow |
-| [docs/DEVPOST_SUBMISSION.md](docs/DEVPOST_SUBMISSION.md) | Devpost submission overview and hackathon pitch |
-| [docs/demo-video-script.md](docs/demo-video-script.md) | 3-minute demo video script and walkthrough |
-| [docs/frontend-spec.md](docs/frontend-spec.md) | UI design specification and component breakdown |
+| [docs/architecture.md](docs/architecture.md) | System architecture, component boundaries, and pipeline sequence flow |
 | [docs/perf/README.md](docs/perf/README.md) | Performance, soak, and resilience test suite overview |
-| [docs/perf/load-report.md](docs/perf/load-report.md) | ClickHouse & API load test benchmarks with charts |
+| [docs/perf/load-report.md](docs/perf/load-report.md) | ClickHouse & REST API load test benchmarks with charts |
 | [docs/perf/stress-report.md](docs/perf/stress-report.md) | Concurrency breaking point analysis |
 | [docs/perf/chaos-report.md](docs/perf/chaos-report.md) | Network partition & failure scenario matrix |
 | [docs/perf/soak-report.md](docs/perf/soak-report.md) | Memory stability and resource leak trace |
