@@ -2,103 +2,615 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Director's Notes: {{ notes.title }}</title>
 <style>
   :root {
-    --bg: #0f1115;
-    --surface: #1a1d24;
-    --accent: #e8a63d;
-    --text: #e8e8ea;
-    --muted: #9a9ea8;
+    /* Langfuse-inspired Dark Theme System */
+    --bg-page: #030712;
+    --bg-subtle: #0b0f17;
+    --bg-card: #111827;
+    --bg-card-hover: #161f30;
+    --bg-inset: #0d121d;
+    
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-card: rgba(255, 255, 255, 0.1);
+    --border-highlight: rgba(255, 255, 255, 0.18);
+    
+    /* Accents & Brand Colors */
+    --accent-emerald: #10b981;
+    --accent-emerald-subtle: rgba(16, 185, 129, 0.12);
+    --accent-cyan: #06b6d4;
+    --accent-blue: #3b82f6;
+    --accent-amber: #f59e0b;
+    --accent-red: #ef4444;
+    --accent-red-subtle: rgba(239, 68, 68, 0.12);
+    
+    /* ClickHouse Gold & Google Palette */
+    --ch-gold: #ffcc00;
+    --ch-gold-subtle: rgba(255, 204, 0, 0.1);
+    
+    --text-primary: #f9fafb;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --text-dim: #4b5563;
+    
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-full: 9999px;
   }
+  
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
   body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-    max-width: 960px;
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    line-height: 1.6;
+    max-width: 1040px;
     margin: 0 auto;
-    padding: 2rem 1.5rem 4rem;
+    padding: 2.5rem 1.5rem 6rem;
+    -webkit-font-smoothing: antialiased;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.05) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(59, 130, 246, 0.05) 0px, transparent 50%);
   }
-  h1 { font-size: 1.8rem; margin-bottom: 0.2rem; }
-  .meta { color: var(--muted); font-size: 0.9rem; margin-bottom: 1.5rem; }
-  .summary {
-    background: var(--surface);
-    border-left: 4px solid var(--accent);
-    padding: 1rem 1.25rem;
-    border-radius: 6px;
+
+  /* Langfuse-style Top Navigation & Brand Header */
+  .header-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-card);
+    padding-bottom: 1.25rem;
+    margin-bottom: 2.25rem;
+  }
+  .nav-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .logo-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    padding: 0.3rem 0.75rem;
+    border-radius: var(--radius-sm);
+    font-weight: 700;
+    font-size: 0.9rem;
+    letter-spacing: -0.01em;
+    color: #ffffff;
+  }
+  .logo-badge .highlight {
+    color: var(--ch-gold);
+  }
+  .tech-pills {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+  }
+  .tech-pill {
+    background: var(--bg-inset);
+    border: 1px solid var(--border-subtle);
+    padding: 0.2rem 0.55rem;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+  }
+  .dot-emerald { background: var(--accent-emerald); box-shadow: 0 0 8px var(--accent-emerald); }
+  .dot-ch { background: var(--ch-gold); }
+  .dot-blue { background: var(--accent-blue); }
+
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--accent-emerald-subtle);
+    color: #6ee7b7;
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 600;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* Title & Metadata Hero */
+  .hero-section {
     margin-bottom: 2rem;
   }
-  .curve-wrap { position: relative; margin-bottom: 2rem; }
-  .cliff-card {
-    background: var(--surface);
-    border-radius: 8px;
-    padding: 1.25rem 1.5rem;
-    margin-bottom: 1rem;
-    border: 1px solid #2a2e37;
-  }
-  .cliff-card h3 { margin-top: 0; color: var(--accent); }
-  .cohort-tag {
-    display: inline-block;
-    background: #2a2e37;
-    color: var(--text);
-    padding: 0.15rem 0.55rem;
-    border-radius: 999px;
+  .hero-pre {
     font-size: 0.8rem;
-    margin-right: 0.3rem;
+    text-transform: uppercase;
+    font-family: var(--font-mono);
+    color: var(--accent-emerald);
+    letter-spacing: 0.08em;
+    margin-bottom: 0.25rem;
   }
-  .rec { margin-top: 0.75rem; padding-left: 1rem; border-left: 2px solid var(--accent); }
-  .milestone-row { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 2rem; }
-  .milestone { background: var(--surface); border-radius: 8px; padding: 0.75rem 1.25rem; }
-  .milestone .value { font-size: 1.4rem; color: var(--accent); font-weight: 600; }
+  h1 {
+    font-size: 2.25rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: #ffffff;
+    margin-bottom: 0.6rem;
+  }
+  .meta-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+  }
+  .meta-tag {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    padding: 0.25rem 0.6rem;
+    border-radius: var(--radius-sm);
+  }
+  .meta-tag strong {
+    color: #ffffff;
+  }
+
+  /* Langfuse-style Executive Summary Callout */
+  .summary-panel {
+    background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-subtle) 100%);
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem 1.75rem;
+    margin-bottom: 2.5rem;
+    position: relative;
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
+  }
+  .summary-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary);
+    margin-bottom: 0.6rem;
+  }
+  .summary-panel p {
+    font-size: 1.02rem;
+    color: #e5e7eb;
+    line-height: 1.65;
+  }
+
+  /* Metric Cards Grid */
+  .section-title {
+    font-size: 0.9rem;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    margin-bottom: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+  }
+  .metric-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-md);
+    padding: 1.1rem 1.25rem;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+  }
+  .metric-card:hover {
+    border-color: var(--border-highlight);
+    background-color: var(--bg-card-hover);
+  }
+  .metric-value {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: #ffffff;
+    font-family: var(--font-sans);
+    line-height: 1;
+    margin-bottom: 0.35rem;
+  }
+  .metric-value.highlight {
+    color: var(--ch-gold);
+  }
+  .metric-label {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    text-transform: lowercase;
+  }
+
+  /* Retention Curve Canvas Box */
+  .canvas-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-lg);
+    padding: 1.75rem;
+    margin-bottom: 3rem;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+  }
+  .canvas-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+  }
+  .canvas-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #ffffff;
+  }
+  .canvas-legend {
+    display: flex;
+    gap: 1.25rem;
+    font-size: 0.78rem;
+    font-family: var(--font-mono);
+    color: var(--text-secondary);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+  }
+  .line-sample-gold {
+    width: 14px;
+    height: 3px;
+    background: var(--ch-gold);
+    border-radius: 2px;
+  }
+  .line-sample-red {
+    width: 14px;
+    height: 2px;
+    background: var(--accent-red);
+    border-top: 1px dashed var(--accent-red);
+  }
+  .curve-wrap {
+    position: relative;
+    width: 100%;
+  }
+
+  /* Cliff Cards */
+  .cliffs-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+  .cliff-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem 1.75rem;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.15s ease;
+  }
+  .cliff-card:hover {
+    border-color: var(--border-highlight);
+  }
+  .cliff-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--accent-red);
+  }
+  .cliff-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  .cliff-heading {
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: #ffffff;
+  }
+  .cliff-heading .drop-stat {
+    color: var(--accent-red);
+    font-weight: 700;
+  }
+  .cliff-heading .z-stat {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-weight: 400;
+  }
+  .severity-badge {
+    background: var(--accent-red-subtle);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    padding: 0.2rem 0.65rem;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    font-weight: 600;
+  }
+  
+  .cohort-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 1.25rem;
+  }
+  .cohort-tag {
+    background: rgba(59, 130, 246, 0.12);
+    color: #93c5fd;
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    padding: 0.15rem 0.55rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+  }
+
+  .insight-group {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+  }
+  .insight-row {
+    background: var(--bg-inset);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 0.75rem 1rem;
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+  .insight-row .label {
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    margin-right: 0.4rem;
+  }
+  .insight-row strong {
+    color: #ffffff;
+  }
+  .insight-row code {
+    font-family: var(--font-mono);
+    color: #93c5fd;
+    font-size: 0.85rem;
+  }
+
+  /* Langfuse-style Action Block */
+  .recommendation-block {
+    background: rgba(255, 204, 0, 0.04);
+    border: 1px solid rgba(255, 204, 0, 0.2);
+    border-radius: var(--radius-md);
+    padding: 1rem 1.25rem;
+    margin-top: 0.85rem;
+  }
+  .action-pill {
+    display: inline-block;
+    background: var(--ch-gold);
+    color: #030712;
+    font-size: 0.72rem;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    padding: 0.15rem 0.55rem;
+    border-radius: var(--radius-sm);
+    text-transform: uppercase;
+    margin-right: 0.5rem;
+    letter-spacing: 0.04em;
+  }
+  .target-time {
+    font-size: 0.82rem;
+    color: var(--accent-cyan);
+    font-family: var(--font-mono);
+  }
+  .rec-body {
+    margin-top: 0.4rem;
+    font-size: 0.92rem;
+    color: #e5e7eb;
+  }
+
+  /* Footer */
+  footer {
+    margin-top: 4.5rem;
+    border-top: 1px solid var(--border-card);
+    padding-top: 1.75rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-family: var(--font-mono);
+  }
+  footer a {
+    color: var(--text-secondary);
+    text-decoration: none;
+  }
 </style>
 </head>
 <body>
-  <h1>Director's Notes: {{ notes.title }}</h1>
-  <div class="meta">
-    trailer_id={{ notes.trailer_id }} | duration={{ notes.duration_s }}s |
-    analyzed {{ notes.analyzed_at }} | overall retention at end
-    {{ "%.1f"|format(notes.overall_retention_end * 100) }}%
+
+  <!-- Top Navigation & System Status -->
+  <header class="header-nav">
+    <div class="nav-left">
+      <div class="logo-badge">
+        <span>CutPoint</span>
+        <span class="highlight">&bull;</span>
+        <span style="font-size: 0.8rem; font-weight: 500; color: var(--text-secondary);">Observability</span>
+      </div>
+      <div class="tech-pills">
+        <div class="tech-pill"><span class="dot dot-ch"></span> ClickHouse</div>
+        <div class="tech-pill"><span class="dot dot-emerald"></span> Google ADK</div>
+        <div class="tech-pill"><span class="dot dot-blue"></span> Vertex AI</div>
+      </div>
+    </div>
+    <div class="status-pill">
+      <span class="dot dot-emerald"></span>
+      <span>Agent Complete</span>
+    </div>
+  </header>
+
+  <!-- Hero Title Section -->
+  <section class="hero-section">
+    <div class="hero-pre">Deterministic Multi-Agent Analytics</div>
+    <h1>Director's Notes: {{ notes.title }}</h1>
+    <div class="meta-toolbar">
+      <div class="meta-tag">trailer_id: <strong>{{ notes.trailer_id }}</strong></div>
+      <div class="meta-tag">duration: <strong>{{ notes.duration_s }}s</strong></div>
+      <div class="meta-tag">analyzed: <strong>{{ notes.analyzed_at }}</strong></div>
+      <div class="meta-tag">final_retention: <strong style="color: var(--ch-gold);">{{ "%.1f"|format(notes.overall_retention_end * 100) }}%</strong></div>
+    </div>
+  </section>
+
+  <!-- Executive Summary Card -->
+  <section class="summary-panel">
+    <div class="summary-panel-header">
+      <span>// Executive Summary</span>
+    </div>
+    <p class="summary">{{ notes.executive_summary }}</p>
+  </section>
+
+  <!-- Funnel Milestone Grid -->
+  <div class="section-title">
+    <span>// Milestone Funnel Metrics (ClickHouse windowFunnel)</span>
   </div>
-
-  <div class="summary">{{ notes.executive_summary }}</div>
-
-  <div class="milestone-row">
+  <div class="metrics-grid milestone-row">
     {% for milestone, fraction in notes.milestone_funnel.items() %}
-    <div class="milestone">
-      <div class="value">{{ "%.0f"|format(fraction * 100) }}%</div>
-      <div>{{ milestone }}</div>
+    <div class="metric-card milestone">
+      <div class="metric-value {% if loop.first %}highlight{% endif %}">{{ "%.0f"|format(fraction * 100) }}%</div>
+      <div class="metric-label">{{ milestone }}</div>
     </div>
     {% endfor %}
   </div>
 
-  <div class="curve-wrap">
-    <svg viewBox="0 0 760 220" width="100%" height="220" role="img" aria-label="Retention curve">
-      <polyline points="{{ svg_polyline }}" fill="none" stroke="#e8a63d" stroke-width="2" />
-      {% for cliff in notes.cliffs %}
-      <line x1="{{ cliff_marker_x(cliff.second) }}" y1="0" x2="{{ cliff_marker_x(cliff.second) }}"
-            y2="220" stroke="#ff5c5c" stroke-width="1.5" stroke-dasharray="4,3" />
+  <!-- Retention Curve Visualization -->
+  <div class="section-title">
+    <span>// Retention Timeseries & Changepoint Isolation</span>
+  </div>
+  <div class="canvas-box chart-container">
+    <div class="canvas-header">
+      <div class="canvas-title">Per-Second Audience Heartbeat Retention</div>
+      <div class="canvas-legend">
+        <div class="legend-item"><span class="line-sample-gold"></span> Retention %</div>
+        <div class="legend-item"><span class="line-sample-red"></span> Anomaly Drop Point</div>
+      </div>
+    </div>
+
+    <div class="curve-wrap">
+      <svg viewBox="0 0 760 220" width="100%" height="220" role="img" aria-label="Retention curve">
+        <defs>
+          <linearGradient id="curveGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#ffcc00" stop-opacity="0.35"/>
+            <stop offset="100%" stop-color="#ffcc00" stop-opacity="0.0"/>
+          </linearGradient>
+        </defs>
+        <!-- Horizontal Grid Lines -->
+        <line x1="0" y1="55" x2="760" y2="55" stroke="rgba(255,255,255,0.05)" stroke-width="1" stroke-dasharray="3,3" />
+        <line x1="0" y1="110" x2="760" y2="110" stroke="rgba(255,255,255,0.05)" stroke-width="1" stroke-dasharray="3,3" />
+        <line x1="0" y1="165" x2="760" y2="165" stroke="rgba(255,255,255,0.05)" stroke-width="1" stroke-dasharray="3,3" />
+        
+        <!-- Polyline Curve -->
+        <polyline points="{{ svg_polyline }}" fill="none" stroke="#ffcc00" stroke-width="2.5" stroke-linecap="round" />
+        
+        <!-- Cliff Markers -->
+        {% for cliff in notes.cliffs %}
+        <line x1="{{ cliff_marker_x(cliff.second) }}" y1="0" x2="{{ cliff_marker_x(cliff.second) }}"
+              y2="220" stroke="#ef4444" stroke-width="1.8" stroke-dasharray="4,4" />
+        <circle cx="{{ cliff_marker_x(cliff.second) }}" cy="110" r="4" fill="#ef4444" stroke="#ffffff" stroke-width="1.5" />
+        {% endfor %}
+      </svg>
+    </div>
+  </div>
+
+  <!-- Retention Cliffs & Multimodal Gemini Diagnoses -->
+  <div class="section-title">
+    <span>// Frame-Accurate Diagnostics & Editorial Recommendations</span>
+  </div>
+
+  <div class="cliffs-container">
+    {% for cliff in notes.cliffs %}
+    <div class="cliff-card">
+      <div class="cliff-card-top">
+        <div class="cliff-heading">
+          Second {{ cliff.second }} &mdash; <span class="drop-stat">{{ "%.1f"|format(cliff.drop_pct * 100) }}% drop</span> 
+          <span class="z-stat">(z={{ "%.1f"|format(cliff.z_score) }})</span>
+        </div>
+        <div class="severity-badge">
+          SEVERITY {{ cliff.severity }}/5
+        </div>
+      </div>
+
+      <div class="cohort-pills">
+        {% for cohort in cliff.affected_cohorts %}
+        <span class="cohort-tag">{{ cohort }}</span>
+        {% endfor %}
+      </div>
+
+      <div class="insight-group">
+        <div class="insight-row">
+          <span class="label">On Screen:</span>
+          <strong>{{ cliff.on_screen }}</strong>
+        </div>
+        <div class="insight-row">
+          <span class="label">Hypothesis:</span>
+          <span>{{ cliff.hypothesis }}</span>
+        </div>
+        <div class="insight-row">
+          <span class="label">Clip Artifact:</span>
+          <code>{{ cliff.clip_path }}</code>
+        </div>
+      </div>
+
+      {% for rec in cliff.recommendations %}
+      <div class="recommendation-block">
+        <div>
+          <span class="action-pill">{{ rec.action }}</span>
+          <span class="target-time">target: seconds {{ rec.target_range_s[0] }}&ndash;{{ rec.target_range_s[1] }}</span>
+        </div>
+        <div class="rec-body rec">
+          <strong style="color: var(--text-secondary); font-size: 0.85rem; text-transform: uppercase;">Rationale:</strong> {{ rec.rationale }}
+        </div>
+      </div>
       {% endfor %}
-    </svg>
-  </div>
-
-  {% for cliff in notes.cliffs %}
-  <div class="cliff-card">
-    <h3>Second {{ cliff.second }} -- {{ "%.1f"|format(cliff.drop_pct * 100) }}% drop
-      (z={{ "%.1f"|format(cliff.z_score) }})</h3>
-    <div>
-      {% for cohort in cliff.affected_cohorts %}<span class="cohort-tag">{{ cohort }}</span>{% endfor %}
-    </div>
-    <p><strong>On screen:</strong> {{ cliff.on_screen }}</p>
-    <p><strong>Hypothesis:</strong> {{ cliff.hypothesis }}</p>
-    <p><strong>Severity:</strong> {{ cliff.severity }}/5</p>
-    <p><strong>Clip:</strong> {{ cliff.clip_path }}</p>
-    {% for rec in cliff.recommendations %}
-    <div class="rec">
-      <strong>{{ rec.action }}</strong> (seconds {{ rec.target_range_s[0] }}-{{ rec.target_range_s[1] }}):
-      {{ rec.rationale }}
     </div>
     {% endfor %}
   </div>
-  {% endfor %}
+
+  <!-- Langfuse-style Minimal Footer -->
+  <footer>
+    <div>CutPoint &bull; Fusing ClickHouse Telemetry with Vertex AI Multimodal Perception</div>
+    <div>Built with Google ADK</div>
+  </footer>
+
 </body>
 </html>
+
+
