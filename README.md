@@ -359,8 +359,9 @@ Full reports with charts: [docs/perf/README.md](docs/perf/README.md)
   Direct `clickhouse-connect` is confined to `ingest/` and `make schema`.
 - **Mocks live only in tests**: No silent stubs. Missing credentials produce
   `MissingCredentialError` with fix instructions.
-- **Local ClickHouse**: A standalone binary at `.local-clickhouse/clickhouse` handles all
-  local development. See `docs/BLOCKERS.md` for how to switch to ClickHouse Cloud.
+- **Local ClickHouse & Cloud Ready**: Works out of the box with a local standalone
+  binary at `.local-clickhouse/clickhouse` or seamlessly connects to ClickHouse Cloud
+  by updating `CLICKHOUSE_HOST` in `.env`.
 
 ---
 
@@ -368,18 +369,15 @@ Full reports with charts: [docs/perf/README.md](docs/perf/README.md)
 
 | Document | Purpose |
 |----------|---------|
-| [docs/architecture.md](docs/architecture.md) | Full architecture with mermaid diagram |
-| [docs/PROGRESS.md](docs/PROGRESS.md) | Phase-by-phase build ledger |
-| [docs/BLOCKERS.md](docs/BLOCKERS.md) | Credential/infrastructure requirements |
-| [docs/TASK.md](docs/TASK.md) | Original build spec (the agent's contract) |
-| [docs/demo-video-script.md](docs/demo-video-script.md) | 3-minute demo video script |
-| [docs/frontend-spec.md](docs/frontend-spec.md) | Replit Agent build prompt for the UI |
-| [docs/submission-checklist.md](docs/submission-checklist.md) | Hackathon submission items |
-| [docs/perf/README.md](docs/perf/README.md) | Performance and resilience test results |
-| [docs/perf/load-report.md](docs/perf/load-report.md) | Load test data with chart |
-| [docs/perf/stress-report.md](docs/perf/stress-report.md) | Breaking point analysis |
-| [docs/perf/chaos-report.md](docs/perf/chaos-report.md) | Failure scenario matrix |
-| [docs/perf/soak-report.md](docs/perf/soak-report.md) | Memory stability trace |
+| [docs/architecture.md](docs/architecture.md) | Full system architecture and multi-agent pipeline flow |
+| [docs/DEVPOST_SUBMISSION.md](docs/DEVPOST_SUBMISSION.md) | Devpost submission overview and hackathon pitch |
+| [docs/demo-video-script.md](docs/demo-video-script.md) | 3-minute demo video script and walkthrough |
+| [docs/frontend-spec.md](docs/frontend-spec.md) | UI design specification and component breakdown |
+| [docs/perf/README.md](docs/perf/README.md) | Performance, soak, and resilience test suite overview |
+| [docs/perf/load-report.md](docs/perf/load-report.md) | ClickHouse & API load test benchmarks with charts |
+| [docs/perf/stress-report.md](docs/perf/stress-report.md) | Concurrency breaking point analysis |
+| [docs/perf/chaos-report.md](docs/perf/chaos-report.md) | Network partition & failure scenario matrix |
+| [docs/perf/soak-report.md](docs/perf/soak-report.md) | Memory stability and resource leak trace |
 
 ---
 
