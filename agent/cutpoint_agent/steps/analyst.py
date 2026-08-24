@@ -16,7 +16,7 @@ from agent.cutpoint_agent.schemas import AnalysisResult
 def build_analyst_agent() -> LlmAgent:
     return LlmAgent(
         name="analyst",
-        model=os.environ.get("GEMINI_MODEL", "gemini-3-flash"),
+        model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
         instruction=ANALYST_INSTRUCTION,
         tools=[clickhouse_toolset()],
         output_schema=AnalysisResult,

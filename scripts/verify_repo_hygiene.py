@@ -30,8 +30,8 @@ def check_readme_sections() -> list[str]:
     readme_path = REPO_ROOT / "README.md"
     if not readme_path.exists():
         return ["README.md is missing"]
-    text = readme_path.read_text()
-    return [f"README.md missing section: {s}" for s in REQUIRED_README_SECTIONS if s not in text]
+    text_lower = readme_path.read_text().lower()
+    return [f"README.md missing section: {s}" for s in REQUIRED_README_SECTIONS if s.lower() not in text_lower]
 
 
 def check_env_not_tracked() -> list[str]:

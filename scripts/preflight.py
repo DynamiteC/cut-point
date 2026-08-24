@@ -102,12 +102,21 @@ def check_clickhouse() -> CheckResult:
 
 
 def check_gcloud_adc() -> CheckResult:
+    try:
+        import google.auth
+
+        credentials, _ = google.auth.default()
+        if credentials:
+            return CheckResult("gcloud:adc", True, "application default credentials valid (via google-auth)")
+    except Exception:  # noqa: BLE001, S110
+        pass
+
     if not shutil.which("gcloud"):
         return CheckResult(
             "gcloud:cli",
             False,
-            "gcloud not found on PATH",
-            "install Google Cloud SDK: https://cloud.google.com/sdk/docs/install",
+            "gcloud not found on PATH and no ADC found",
+            "install Google Cloud SDK: https://cloud.google.com/sdk/docs/install or run gcloud auth application-default login",
             hard_requirement=False,
         )
     try:

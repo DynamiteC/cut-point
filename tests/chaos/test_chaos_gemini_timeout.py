@@ -65,16 +65,18 @@ def test_gemini_timeout_single_cliff_graceful_failure():
         "Deadline exceeded: Gemini API did not respond within 30s"
     )
 
-    with pytest.raises(TimeoutError) as exc_info:
-        with patch.object(Path, "read_bytes", return_value=b"\x00" * 100):
-            diagnose_clip(
-                client=mock_client,
-                model="gemini-3-flash",
-                clip_path="/tmp/fake_clip.mp4",
-                second=10,
-                drop_pct=15.0,
-                cohorts=["mobile"],
-            )
+    with (
+        pytest.raises(TimeoutError) as exc_info,
+        patch.object(Path, "read_bytes", return_value=b"\x00" * 100),
+    ):
+        diagnose_clip(
+            client=mock_client,
+            model="gemini-3-flash",
+            clip_path="/tmp/fake_clip.mp4",
+            second=10,
+            drop_pct=15.0,
+            cohorts=["mobile"],
+        )
 
     error_text = str(exc_info.value)
     assert "timeout" in error_text.lower() or "deadline" in error_text.lower()
@@ -132,7 +134,7 @@ def test_gemini_timeout_blast_radius_containment():
                     cohorts=cliff.affected_cohorts,
                 )
                 diagnoses.append(result)
-        except (TimeoutError, Exception) as e:
+        except (TimeoutError, Exception) as e:  # noqa: BLE001
             errors.append({"second": clip.second, "error": str(e)})
 
     # One cliff failed, two succeeded: blast radius contained

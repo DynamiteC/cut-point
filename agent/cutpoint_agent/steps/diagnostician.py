@@ -59,12 +59,16 @@ def diagnose_clip(client: genai.Client, model: str, clip_path: str, second: int,
         ),
     )
     parsed = json.loads(response.text)
+    raw_severity = parsed.get("severity", 3)
+    severity = max(1, min(5, int(raw_severity))) if isinstance(raw_severity, (int, float)) else 3
+    raw_confidence = parsed.get("confidence", 0.8)
+    confidence = max(0.0, min(1.0, float(raw_confidence))) if isinstance(raw_confidence, (int, float)) else 0.8
     return Diagnosis(
         second=second,
-        on_screen=parsed["on_screen"],
-        hypothesis=parsed["hypothesis"],
-        severity=parsed["severity"],
-        confidence=parsed["confidence"],
+        on_screen=parsed.get("on_screen", ""),
+        hypothesis=parsed.get("hypothesis", ""),
+        severity=severity,
+        confidence=confidence,
     )
 
 

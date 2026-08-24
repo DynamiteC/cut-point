@@ -40,9 +40,9 @@ LOADTEST_TABLE = "_loadtest_raw_playback_events"
 
 
 def get_client():
-    """Create ClickHouse client from .env config."""
-    import clickhouse_connect
     import os
+
+    import clickhouse_connect
 
     return clickhouse_connect.get_client(
         host=os.environ["CLICKHOUSE_HOST"],

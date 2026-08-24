@@ -16,7 +16,7 @@ Built for the Agentic Cinema hackathon (Google Cloud, ClickHouse track).
 ## Table of Contents
 
 1. [Quickstart](#quickstart)
-2. [High-Level Design (HLD)](#high-level-design)
+2. [High-Level Design and Architecture](#high-level-design-and-architecture)
 3. [Low-Level Design (LLD)](#low-level-design)
 4. [Repository Layout](#repository-layout)
 5. [Environment Variables](#environment-variables)
@@ -46,7 +46,7 @@ Run `make smoke` before every push as a fast sanity gate.
 
 ---
 
-## High-Level Design
+## High-Level Design and Architecture
 
 ### System Context
 

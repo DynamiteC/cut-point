@@ -55,7 +55,7 @@ class ExtractorAgent(BaseAgent):
         if not video_path:
             raise RuntimeError("extractor step requires video_path in session state")
 
-        extractor_url = os.environ.get("SEGMENT_EXTRACTOR_URL", "http://localhost:8081")
+        extractor_url = os.environ.get("SEGMENT_EXTRACTOR_URL", "http://127.0.0.1:8081")
         result = run_extraction(analysis, video_path, extractor_url)
 
         yield Event(

@@ -145,7 +145,7 @@ async def run_load(
                 if resp.status_code >= 400:
                     errors += 1
                 latencies.append(elapsed_ms)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 elapsed_ms = (time.perf_counter() - start) * 1000
                 latencies.append(elapsed_ms)
                 errors += 1
