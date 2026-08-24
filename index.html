@@ -1,0 +1,819 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CutPoint — Multimodal Video Retention AI Agent</title>
+<meta name="description" content="AI Agent that pinpoints where video audiences disengage with ClickHouse OLAP analytics, and diagnoses why using Google Cloud Vertex AI Gemini multimodal perception.">
+<style>
+  :root {
+    --bg-page: #030712;
+    --bg-subtle: #0b0f17;
+    --bg-card: #111827;
+    --bg-card-hover: #161f30;
+    --bg-inset: #0d121d;
+    
+    --border-subtle: rgba(255, 255, 255, 0.07);
+    --border-card: rgba(255, 255, 255, 0.12);
+    --border-highlight: rgba(255, 255, 255, 0.22);
+    
+    --accent-emerald: #10b981;
+    --accent-emerald-subtle: rgba(16, 185, 129, 0.12);
+    --accent-cyan: #06b6d4;
+    --accent-blue: #3b82f6;
+    --accent-amber: #f59e0b;
+    --accent-red: #ef4444;
+    --accent-red-subtle: rgba(239, 68, 68, 0.14);
+    
+    --ch-gold: #ffcc00;
+    --ch-gold-subtle: rgba(255, 204, 0, 0.12);
+    
+    --text-primary: #f9fafb;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --text-dim: #4b5563;
+    
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+    --radius-full: 9999px;
+  }
+  
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  body {
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    background-image: 
+      radial-gradient(circle at 50% 0%, rgba(16, 185, 129, 0.08) 0px, transparent 60%),
+      radial-gradient(circle at 100% 20%, rgba(59, 130, 246, 0.06) 0px, transparent 50%),
+      radial-gradient(circle at 0% 40%, rgba(255, 204, 0, 0.04) 0px, transparent 50%);
+  }
+
+  /* Sticky Navigation */
+  header.navbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: rgba(3, 7, 18, 0.82);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .nav-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0.9rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .brand-group {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+  }
+  .brand-logo {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    text-decoration: none;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 1.15rem;
+    letter-spacing: -0.02em;
+  }
+  .brand-logo .badge-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: var(--radius-full);
+    background: var(--ch-gold);
+    box-shadow: 0 0 10px var(--ch-gold);
+  }
+  .nav-pills {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .nav-pill {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    padding: 0.25rem 0.65rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+  }
+  .nav-link {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.88rem;
+    font-weight: 500;
+    transition: color 0.15s ease;
+  }
+  .nav-link:hover { color: #ffffff; }
+  .btn-gh {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    color: #ffffff;
+    padding: 0.4rem 0.9rem;
+    border-radius: var(--radius-md);
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: all 0.15s ease;
+  }
+  .btn-gh:hover {
+    border-color: var(--border-highlight);
+    background: var(--bg-card-hover);
+  }
+
+  /* Hero Section */
+  .hero-container {
+    max-width: 1080px;
+    margin: 4.5rem auto 3rem;
+    padding: 0 1.5rem;
+    text-align: center;
+  }
+  .announcement-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--accent-emerald-subtle);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    color: #6ee7b7;
+    font-size: 0.78rem;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    padding: 0.35rem 0.9rem;
+    border-radius: var(--radius-full);
+    margin-bottom: 1.5rem;
+    letter-spacing: 0.03em;
+  }
+  .announcement-chip .pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background: var(--accent-emerald);
+    box-shadow: 0 0 8px var(--accent-emerald);
+  }
+  h1.hero-title {
+    font-size: 3.4rem;
+    font-weight: 800;
+    line-height: 1.12;
+    letter-spacing: -0.04em;
+    color: #ffffff;
+    margin-bottom: 1.25rem;
+  }
+  h1.hero-title .gradient-text {
+    background: linear-gradient(135deg, #ffffff 0%, #ffcc00 50%, #34d399 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  p.hero-subtitle {
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    max-width: 760px;
+    margin: 0 auto 2.25rem;
+    line-height: 1.6;
+  }
+  .hero-cta-group {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 3.5rem;
+  }
+  .btn-primary {
+    background: var(--ch-gold);
+    color: #030712;
+    padding: 0.75rem 1.6rem;
+    border-radius: var(--radius-md);
+    font-weight: 700;
+    font-size: 0.95rem;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 4px 20px -2px rgba(255, 204, 0, 0.3);
+  }
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 28px -2px rgba(255, 204, 0, 0.45);
+  }
+  .btn-secondary {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    color: #ffffff;
+    padding: 0.75rem 1.5rem;
+    border-radius: var(--radius-md);
+    font-weight: 600;
+    font-size: 0.95rem;
+    text-decoration: none;
+    transition: all 0.15s ease;
+  }
+  .btn-secondary:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-highlight);
+  }
+
+  /* Interactive Demo Dashboard Container */
+  .demo-wrapper {
+    max-width: 1100px;
+    margin: 0 auto 5rem;
+    padding: 0 1.5rem;
+  }
+  .dashboard-window {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+  .window-topbar {
+    background: var(--bg-subtle);
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 0.85rem 1.25rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  .window-dots {
+    display: flex;
+    gap: 6px;
+  }
+  .window-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: var(--radius-full);
+  }
+  .dot-close { background: #ef4444; }
+  .dot-min { background: #f59e0b; }
+  .dot-max { background: #10b981; }
+  .window-title {
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+  }
+  .window-tabs {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .tab-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .tab-btn.active, .tab-btn:hover {
+    background: var(--ch-gold);
+    color: #030712;
+    font-weight: 700;
+    border-color: var(--ch-gold);
+  }
+
+  .window-content {
+    padding: 2rem;
+  }
+
+  /* Live Retention Chart in Demo Window */
+  .chart-box {
+    background: var(--bg-inset);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    margin-bottom: 1.75rem;
+  }
+  .chart-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+  }
+  .chart-meta .chart-title { color: #ffffff; font-weight: 600; }
+  .chart-legend { display: flex; gap: 1.25rem; }
+  .legend-chip { display: flex; align-items: center; gap: 0.4rem; color: var(--text-secondary); }
+  .legend-chip .bar-yellow { width: 14px; height: 3px; background: var(--ch-gold); border-radius: 2px; }
+  .legend-chip .bar-red { width: 14px; height: 2px; background: var(--accent-red); border-top: 1px dashed var(--accent-red); }
+
+  /* Funnel Metrics Row */
+  .funnel-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.75rem;
+  }
+  .funnel-card {
+    background: var(--bg-inset);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 1rem 1.25rem;
+  }
+  .funnel-card .f-val {
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: var(--ch-gold);
+    line-height: 1.1;
+    margin-bottom: 0.25rem;
+  }
+  .funnel-card .f-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+  }
+
+  /* Diagnostic Inspection Cards */
+  .diag-card {
+    background: var(--bg-inset);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    position: relative;
+    border-left: 3px solid var(--accent-red);
+  }
+  .diag-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.85rem;
+  }
+  .diag-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #ffffff;
+  }
+  .diag-title .drop-text { color: var(--accent-red); }
+  .severity-pill {
+    background: var(--accent-red-subtle);
+    color: #fca5a5;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+    font-size: 0.72rem;
+    font-family: var(--font-mono);
+    padding: 0.2rem 0.6rem;
+    border-radius: var(--radius-full);
+    font-weight: 700;
+  }
+  .diag-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  .diag-cell {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    padding: 0.75rem 1rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.88rem;
+  }
+  .diag-cell .tag {
+    font-size: 0.72rem;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 0.2rem;
+  }
+  .rec-banner {
+    background: rgba(255, 204, 0, 0.05);
+    border: 1px solid rgba(255, 204, 0, 0.2);
+    border-radius: var(--radius-md);
+    padding: 0.85rem 1.15rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.9rem;
+  }
+  .rec-badge {
+    background: var(--ch-gold);
+    color: #030712;
+    font-weight: 800;
+    font-size: 0.72rem;
+    font-family: var(--font-mono);
+    padding: 0.2rem 0.55rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+
+  /* Pipeline Architecture Steps Section */
+  .section-container {
+    max-width: 1100px;
+    margin: 6rem auto;
+    padding: 0 1.5rem;
+  }
+  .section-badge {
+    color: var(--accent-emerald);
+    font-size: 0.8rem;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.5rem;
+  }
+  .section-h2 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: #ffffff;
+    margin-bottom: 1rem;
+  }
+  .section-desc {
+    color: var(--text-secondary);
+    font-size: 1.05rem;
+    max-width: 680px;
+    margin-bottom: 3rem;
+  }
+
+  .pipeline-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.25rem;
+  }
+  .step-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    position: relative;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+  }
+  .step-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--border-highlight);
+  }
+  .step-num {
+    font-size: 0.8rem;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+  }
+  .step-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 0.5rem;
+  }
+  .step-body {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+  .step-badge {
+    margin-top: 1rem;
+    display: inline-block;
+    font-size: 0.72rem;
+    font-family: var(--font-mono);
+    padding: 0.15rem 0.5rem;
+    border-radius: var(--radius-sm);
+    background: var(--bg-inset);
+    border: 1px solid var(--border-subtle);
+    color: var(--ch-gold);
+  }
+
+  /* Benchmark Stats */
+  .stats-bar {
+    background: var(--bg-subtle);
+    border-top: 1px solid var(--border-subtle);
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 3.5rem 1.5rem;
+    margin-top: 5rem;
+  }
+  .stats-grid {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2rem;
+    text-align: center;
+  }
+  .stat-number {
+    font-size: 2.75rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    color: #ffffff;
+    font-family: var(--font-sans);
+    line-height: 1;
+    margin-bottom: 0.4rem;
+  }
+  .stat-number.gold { color: var(--ch-gold); }
+  .stat-number.emerald { color: #34d399; }
+  .stat-label {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* Footer */
+  footer.main-footer {
+    max-width: 1100px;
+    margin: 4rem auto 3rem;
+    padding: 2rem 1.5rem 0;
+    border-top: 1px solid var(--border-subtle);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+  }
+
+  @media (max-width: 860px) {
+    h1.hero-title { font-size: 2.4rem; }
+    .funnel-row { grid-template-columns: 1fr 1fr; }
+    .pipeline-grid { grid-template-columns: 1fr 1fr; }
+    .stats-grid { grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .diag-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 560px) {
+    .pipeline-grid { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- Sticky Navbar -->
+  <header class="navbar">
+    <div class="nav-container">
+      <div class="brand-group">
+        <a href="#" class="brand-logo">
+          <span class="badge-dot"></span>
+          <span>CutPoint</span>
+        </a>
+        <div class="nav-pills">
+          <div class="nav-pill">ClickHouse</div>
+          <div class="nav-pill">Google ADK</div>
+          <div class="nav-pill">Vertex AI</div>
+        </div>
+      </div>
+      <div class="nav-links">
+        <a href="#pipeline" class="nav-link">Architecture</a>
+        <a href="#demo" class="nav-link">Live Report</a>
+        <a href="#stats" class="nav-link">Benchmarks</a>
+        <a href="https://github.com/DynamiteC/cut-point" target="_blank" rel="noopener" class="btn-gh">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          <span>GitHub</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero-container">
+    <div class="announcement-chip">
+      <span class="pulse-dot"></span>
+      <span>Live Google ADK + ClickHouse Hackathon Pipeline</span>
+    </div>
+    <h1 class="hero-title">
+      Cut Smarter. <span class="gradient-text">Retain Longer.</span>
+    </h1>
+    <p class="hero-subtitle">
+      Deterministic AI agent that detects where video audiences drop off using ClickHouse per-second telemetry, and diagnoses why using Vertex AI Gemini 2.5 Flash frame perception.
+    </p>
+    <div class="hero-cta-group">
+      <a href="#demo" class="btn-primary">
+        <span>Explore Director's Notes Demo</span>
+        <span>&darr;</span>
+      </a>
+      <a href="#pipeline" class="btn-secondary">
+        <span>How the Agent Works</span>
+      </a>
+    </div>
+  </section>
+
+  <!-- Interactive Live Demo Section -->
+  <section id="demo" class="demo-wrapper">
+    <div class="dashboard-window">
+      <div class="window-topbar">
+        <div style="display: flex; align-items: center; gap: 0.85rem;">
+          <div class="window-dots">
+            <span class="window-dot dot-close"></span>
+            <span class="window-dot dot-min"></span>
+            <span class="window-dot dot-max"></span>
+          </div>
+          <span class="window-title">cutpoint-agent // demo_001.html &bull; Director's Notes</span>
+        </div>
+        <div class="window-tabs">
+          <button class="tab-btn active" onclick="switchDemo('demo_001')">demo_001 (Injected Cliff)</button>
+          <button class="tab-btn" onclick="switchDemo('control')">demo_control (Baseline)</button>
+        </div>
+      </div>
+
+      <div class="window-content">
+        <!-- Milestone Funnel -->
+        <div class="funnel-row">
+          <div class="funnel-card">
+            <div class="f-val">100%</div>
+            <div class="f-label">started (0s)</div>
+          </div>
+          <div class="funnel-card">
+            <div class="f-val">87%</div>
+            <div class="f-label">reached_25pct</div>
+          </div>
+          <div class="funnel-card">
+            <div class="f-val">68%</div>
+            <div class="f-label">reached_50pct</div>
+          </div>
+          <div class="funnel-card">
+            <div class="f-val" id="funnel-end-val">12%</div>
+            <div class="f-label">completed (100%)</div>
+          </div>
+        </div>
+
+        <!-- Retention Curve Chart -->
+        <div class="chart-box">
+          <div class="chart-meta">
+            <span class="chart-title">Audience Heartbeat Retention Curve (ClickHouse Aggregations)</span>
+            <div class="chart-legend">
+              <div class="legend-chip"><span class="bar-yellow"></span> Retention %</div>
+              <div class="legend-chip"><span class="bar-red"></span> Detected Cliff (Second 48)</div>
+            </div>
+          </div>
+
+          <svg viewBox="0 0 760 200" width="100%" height="200" role="img" aria-label="Interactive retention curve">
+            <defs>
+              <linearGradient id="grad-area" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#ffcc00" stop-opacity="0.25"/>
+                <stop offset="100%" stop-color="#ffcc00" stop-opacity="0.0"/>
+              </linearGradient>
+            </defs>
+            <line x1="0" y1="50" x2="760" y2="50" stroke="rgba(255,255,255,0.06)" stroke-width="1" stroke-dasharray="3,3" />
+            <line x1="0" y1="100" x2="760" y2="100" stroke="rgba(255,255,255,0.06)" stroke-width="1" stroke-dasharray="3,3" />
+            <line x1="0" y1="150" x2="760" y2="150" stroke="rgba(255,255,255,0.06)" stroke-width="1" stroke-dasharray="3,3" />
+            
+            <polyline id="retention-line" points="0,15 50,22 100,28 150,35 200,42 250,50 300,56 350,62 400,68 450,75 490,82 505,145 550,158 600,165 650,170 700,174 760,178"
+                      fill="none" stroke="#ffcc00" stroke-width="2.5" stroke-linecap="round" />
+            
+            <line id="cliff-line" x1="505" y1="0" x2="505" y2="200" stroke="#ef4444" stroke-width="1.8" stroke-dasharray="4,4" />
+            <circle id="cliff-circle" cx="505" cy="115" r="5" fill="#ef4444" stroke="#ffffff" stroke-width="1.5" />
+          </svg>
+        </div>
+
+        <!-- Diagnostic & Recommendation Card -->
+        <div class="diag-card" id="diag-container">
+          <div class="diag-header">
+            <div class="diag-title">
+              Second 48 &mdash; <span class="drop-text">-42.3% Retention Drop</span> (z=4.8)
+            </div>
+            <span class="severity-pill">SEVERITY 4/5</span>
+          </div>
+
+          <div class="diag-grid">
+            <div class="diag-cell">
+              <span class="tag">// On-Screen Visual Diagnosis</span>
+              <strong>Muted dialogue scene with sudden pacing deceleration & dark lighting.</strong>
+            </div>
+            <div class="diag-cell">
+              <span class="tag">// Impacted Demographic Cohorts</span>
+              <span style="color: #93c5fd; font-family: var(--font-mono);">Age 18&ndash;24 (Mobile Viewers)</span>
+            </div>
+          </div>
+
+          <div class="rec-banner">
+            <span class="rec-badge">replace_shot</span>
+            <div><strong>Recommendation:</strong> Replace dialogue pause at seconds 45&ndash;52 with high-energy action cut from sequence B to sustain viewer momentum.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pipeline Walkthrough -->
+  <section id="pipeline" class="section-container">
+    <div class="section-badge">// Deterministic Multi-Agent Sequence</div>
+    <h2 class="section-h2">Four-Stage Autonomous Pipeline</h2>
+    <p class="section-desc">
+      Each step in CutPoint is purpose-built: LLMs are used only for language and vision, while analytical math and video slicing remain 100% deterministic.
+    </p>
+
+    <div class="pipeline-grid">
+      <div class="step-card">
+        <div class="step-num">STAGE 01</div>
+        <div class="step-title">Analyst Agent</div>
+        <div class="step-body">
+          Queries ClickHouse Cloud OLAP via FastMCP. Identifies retention changepoints (z-score &ge; 2.5) and cohort divergence in &lt; 50ms.
+        </div>
+        <span class="step-badge">ClickHouse SQL</span>
+      </div>
+
+      <div class="step-card">
+        <div class="step-num">STAGE 02</div>
+        <div class="step-title">Extractor Agent</div>
+        <div class="step-body">
+          Deterministic HTTP microservice that triggers local or Cloud Run FFmpeg to slice a 10-second window centered on each detected cliff point.
+        </div>
+        <span class="step-badge">FFmpeg / Cloud Run</span>
+      </div>
+
+      <div class="step-card">
+        <div class="step-num">STAGE 03</div>
+        <div class="step-title">Diagnostician</div>
+        <div class="step-body">
+          Passes sliced MP4 clips to Vertex AI Gemini 2.5 Flash for multimodal frame-level perception (visual clarity, audio drop, narrative hook).
+        </div>
+        <span class="step-badge">Gemini 2.5 Flash</span>
+      </div>
+
+      <div class="step-card">
+        <div class="step-num">STAGE 04</div>
+        <div class="step-title">Reporter Agent</div>
+        <div class="step-body">
+          Compiles frame insights, changepoints, and timestamps into self-contained, interactive Director's Notes in JSON and HTML.
+        </div>
+        <span class="step-badge">Jinja2 / JSON Schema</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Performance & Benchmark Statistics -->
+  <section id="stats" class="stats-bar">
+    <div class="stats-grid">
+      <div>
+        <div class="stat-number gold">48ms</div>
+        <div class="stat-label">ClickHouse p95 Query Latency</div>
+      </div>
+      <div>
+        <div class="stat-number emerald">36 / 36</div>
+        <div class="stat-label">Automated Tests Passing</div>
+      </div>
+      <div>
+        <div class="stat-number">0.0%</div>
+        <div class="stat-label">False Positive Rate (Control)</div>
+      </div>
+      <div>
+        <div class="stat-number">100%</div>
+        <div class="stat-label">Self-Contained (Zero CDN)</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="main-footer">
+    <div>CutPoint &bull; Built with Google ADK, Vertex AI Gemini, & ClickHouse Cloud</div>
+    <div>MIT Licensed &bull; <a href="https://github.com/DynamiteC/cut-point" style="color: var(--text-secondary); text-decoration: none;">GitHub Repository</a></div>
+  </footer>
+
+  <script>
+    function switchDemo(type) {
+      const line = document.getElementById('retention-line');
+      const cliffLine = document.getElementById('cliff-line');
+      const cliffCircle = document.getElementById('cliff-circle');
+      const endVal = document.getElementById('funnel-end-val');
+      const diag = document.getElementById('diag-container');
+      const buttons = document.querySelectorAll('.tab-btn');
+      
+      buttons.forEach(b => b.classList.remove('active'));
+      
+      if (type === 'demo_001') {
+        buttons[0].classList.add('active');
+        line.setAttribute('points', '0,15 50,22 100,28 150,35 200,42 250,50 300,56 350,62 400,68 450,75 490,82 505,145 550,158 600,165 650,170 700,174 760,178');
+        cliffLine.style.display = 'block';
+        cliffCircle.style.display = 'block';
+        endVal.innerText = '12%';
+        diag.style.display = 'block';
+      } else {
+        buttons[1].classList.add('active');
+        line.setAttribute('points', '0,15 50,22 100,28 150,35 200,42 250,48 300,54 350,60 400,66 450,72 500,78 550,84 600,90 650,96 700,102 760,108');
+        cliffLine.style.display = 'none';
+        cliffCircle.style.display = 'none';
+        endVal.innerText = '46%';
+        diag.style.display = 'none';
+      }
+    }
+  </script>
+</body>
+</html>
