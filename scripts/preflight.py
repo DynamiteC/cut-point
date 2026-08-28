@@ -149,7 +149,7 @@ def check_gcloud_adc() -> CheckResult:
 def check_vertex_model(adc_ok: bool) -> CheckResult:
     model = os.environ.get("GEMINI_MODEL", "")
     project = os.environ.get("GOOGLE_CLOUD_PROJECT")
-    location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
+    location = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
     if not model or not project or not adc_ok:
         return CheckResult(
             "vertex:model-available",
@@ -158,22 +158,29 @@ def check_vertex_model(adc_ok: bool) -> CheckResult:
             "set GOOGLE_CLOUD_PROJECT in .env and run gcloud auth application-default login",
             hard_requirement=False,
         )
+    # models.list() returns the global publisher catalog, not what this project can
+    # actually serve in this location -- it reports gemini-3.5-flash as present in
+    # us-central1 where generate_content returns 404. Probe with a real call instead.
     try:
         from google import genai
+        from google.genai import types
 
         client = genai.Client(vertexai=True, project=project, location=location)
-        models = [m.name for m in client.models.list()]
-        matches = [m for m in models if model in m]
-        if matches:
-            return CheckResult("vertex:model-available", True, f"found {matches[0]}")
-        return CheckResult(
-            "vertex:model-available",
-            False,
-            f"{model} not found in {len(models)} available models",
-            "check GEMINI_MODEL spelling or choose a listed model",
-            hard_requirement=False,
+        client.models.generate_content(
+            model=model,
+            contents=["ping"],
+            config=types.GenerateContentConfig(max_output_tokens=2000),
         )
+        return CheckResult("vertex:model-available", True, f"{model} served from {location}")
     except Exception as exc:  # noqa: BLE001
+        if "404" in str(exc) or "NOT_FOUND" in str(exc):
+            return CheckResult(
+                "vertex:model-available",
+                False,
+                f"{model} not served from location={location}",
+                'Gemini 3.x is served from "global" only -- set GOOGLE_CLOUD_LOCATION=global in .env',
+                hard_requirement=False,
+            )
         return CheckResult(
             "vertex:model-available",
             False,

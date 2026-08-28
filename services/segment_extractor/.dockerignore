@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+Dockerfile
+.dockerignore
+deploy_cloud_run.sh

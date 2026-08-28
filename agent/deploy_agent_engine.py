@@ -36,7 +36,7 @@ def validate_config() -> dict:
 
     return {
         "project": os.environ["GOOGLE_CLOUD_PROJECT"],
-        "location": os.environ["GOOGLE_CLOUD_LOCATION"],
+        "location": os.environ.get("GCP_REGION", "us-central1"),
         "display_name": "cutpoint-agent",
         "requirements": REQUIREMENTS,
     }

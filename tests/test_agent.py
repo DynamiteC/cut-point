@@ -95,7 +95,7 @@ def test_diagnostician_uses_mocked_gemini_client_never_real_vertex():
     )
     mock_client.models.generate_content.return_value = mock_response
 
-    diagnoses = run_diagnostics(analysis, extraction, mock_client, "gemini-3-flash")
+    diagnoses = run_diagnostics(analysis, extraction, mock_client, "gemini-3.5-flash")
 
     assert len(diagnoses) == 1
     assert diagnoses[0].severity == 4

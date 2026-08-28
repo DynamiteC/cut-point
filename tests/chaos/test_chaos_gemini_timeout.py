@@ -71,7 +71,7 @@ def test_gemini_timeout_single_cliff_graceful_failure():
     ):
         diagnose_clip(
             client=mock_client,
-            model="gemini-3-flash",
+            model="gemini-3.5-flash",
             clip_path="/tmp/fake_clip.mp4",
             second=10,
             drop_pct=15.0,
@@ -127,7 +127,7 @@ def test_gemini_timeout_blast_radius_containment():
             with patch.object(Path, "read_bytes", return_value=b"\x00" * 100):
                 result = diagnose_clip(
                     client=mock_client,
-                    model="gemini-3-flash",
+                    model="gemini-3.5-flash",
                     clip_path=clip.clip_path,
                     second=clip.second,
                     drop_pct=cliff.drop_pct,

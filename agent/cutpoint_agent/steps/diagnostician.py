@@ -17,6 +17,7 @@ from google.adk.events import Event
 from google.adk.events.event_actions import EventActions
 from google.genai import types
 
+from agent.cutpoint_agent.config import gemini_model
 from agent.cutpoint_agent.prompts import diagnostician_prompt
 from agent.cutpoint_agent.schemas import AnalysisResult, Diagnosis, ExtractionResult
 from ingest.errors import MissingCredentialError
@@ -35,20 +36,21 @@ DIAGNOSIS_RESPONSE_SCHEMA = {
 
 def build_genai_client() -> genai.Client:
     project = os.environ.get("GOOGLE_CLOUD_PROJECT")
-    location = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
+    location = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
     if not project:
         raise MissingCredentialError("GOOGLE_CLOUD_PROJECT")
     return genai.Client(vertexai=True, project=project, location=location)
 
 
 def diagnose_clip(client: genai.Client, model: str, clip_path: str, second: int,
-                   drop_pct: float, cohorts: list[str]) -> Diagnosis:
+                   drop_pct: float, cohorts: list[str], start_s: int = 0,
+                   end_s: int | None = None) -> Diagnosis:
     """Pure, testable diagnosis logic for a single clip. `client` is injectable so
     tests can pass a mock and never touch Vertex AI.
     """
     video_bytes = Path(clip_path).read_bytes()
     video_part = types.Part.from_bytes(data=video_bytes, mime_type="video/mp4")
-    prompt = diagnostician_prompt(second, drop_pct, cohorts)
+    prompt = diagnostician_prompt(second, drop_pct, cohorts, start_s, end_s)
 
     response = client.models.generate_content(
         model=model,
@@ -81,7 +83,14 @@ def run_diagnostics(
         cliff = cliff_by_second[clip.second]
         diagnoses.append(
             diagnose_clip(
-                client, model, clip.clip_path, clip.second, cliff.drop_pct, cliff.affected_cohorts
+                client,
+                model,
+                clip.clip_path,
+                clip.second,
+                cliff.drop_pct,
+                cliff.affected_cohorts,
+                clip.start_s,
+                clip.end_s,
             )
         )
     return diagnoses
@@ -97,7 +106,7 @@ class DiagnosticianAgent(BaseAgent):
         extraction = ExtractionResult.model_validate(ctx.session.state["extraction_result"])
 
         client = build_genai_client()
-        model = os.environ.get("GEMINI_MODEL", "gemini-3-flash")
+        model = gemini_model()
         diagnoses = run_diagnostics(analysis, extraction, client, model)
 
         yield Event(
