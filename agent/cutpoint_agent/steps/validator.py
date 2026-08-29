@@ -1,4 +1,11 @@
-"""Step 2: validator -- re-derive the analytics and overrule the LLM.
+"""Not a pipeline step. The measurement that removed one.
+
+This module is no longer wired into the pipeline: the analyst reads the database
+directly and there is nothing left to overrule. What remains is used two ways.
+analyst.py imports its query helpers, and validate() plus its tests are kept as
+the record of WHY the numeric path has no model in it -- on a real run the
+LlmAgent analyst reported a cliff at second 2 that does not exist and missed all
+three that do.
 
 The analyst is an LlmAgent that TRANSCRIBES mcp-clickhouse tool output into
 AnalysisResult. `output_schema` validates the shape of that transcription, not
@@ -19,13 +26,7 @@ than the convention it replaces.
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
 from pathlib import Path
-
-from google.adk.agents import BaseAgent
-from google.adk.agents.invocation_context import InvocationContext
-from google.adk.events import Event
-from google.adk.events.event_actions import EventActions
 
 from agent.cutpoint_agent.schemas import AnalysisResult, CliffPoint, ValidationReport
 
@@ -156,26 +157,3 @@ def validate(analysis: AnalysisResult, client) -> tuple[AnalysisResult, Validati
         corrected=corrected,
     )
     return verified, report
-
-
-class ValidatorAgent(BaseAgent):
-    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        analysis = AnalysisResult.model_validate(ctx.session.state["analysis_result"])
-
-        from ingest.clickhouse_client import get_readonly_client
-
-        client = get_readonly_client()
-        try:
-            verified, report = validate(analysis, client)
-        finally:
-            client.close()
-
-        yield Event(
-            author=self.name,
-            actions=EventActions(
-                state_delta={
-                    "analysis_result": verified.model_dump(mode="json"),
-                    "validation_report": report.model_dump(mode="json"),
-                }
-            ),
-        )

@@ -278,7 +278,9 @@ caller identity are never served anonymously.
 
 Only steps 3 and 4 involve a model, and neither produces a measurement: every second, percentage
 and count is read from ClickHouse in step 1. The diagnostician does return `severity` and
-`confidence`, which are its judgement of a cliff the database found. Step 4's prose is rejected
+`confidence`, its judgement of a cliff the database found. Only `severity` reaches the report;
+`confidence` is produced and then dropped, because `CliffFinding` has no field for it. Step 4's
+prose is rejected
 if it cites a second that was not detected as a cliff.
 
 ### Data Flow (single /analyze request)

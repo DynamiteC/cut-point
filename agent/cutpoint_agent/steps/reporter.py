@@ -1,4 +1,4 @@
-"""Step 4: reporter -- merges analysis, extraction and diagnoses into
+"""Step 5: reporter -- merges analysis, extraction and diagnoses into
 DirectorsNotes, writes JSON, then renders MD + HTML.
 """
 

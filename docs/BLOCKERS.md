@@ -30,6 +30,15 @@ invented a CGI explosion and a viewer count. The prompt now carries the real dat
 `summary_is_grounded()` rejects a summary citing a second that was not detected as a cliff. That
 check is narrow: it catches invented timestamps, not invented adjectives.
 
+## The model's confidence score is computed and then discarded
+
+`Diagnosis` carries a `confidence` float that Gemini returns with every
+diagnosis, and it is clamped to range on the way in. `CliffFinding` has no such
+field, so `build_directors_notes` never copies it and no report or rendered page
+has ever shown it. This is an oversight, not a decision. Carrying it through is a
+small schema change, but it would require regenerating and reseeding all four
+reports, so it is recorded here rather than done under deadline.
+
 ## ClickHouse must be reachable from Cloud Run
 
 The deployed services cannot reach a ClickHouse running on a developer's machine.

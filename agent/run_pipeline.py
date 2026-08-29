@@ -17,14 +17,17 @@ from dotenv import load_dotenv
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-PIPELINE_STEPS = ["analyst", "extractor", "diagnostician", "reporter"]
+# Must match agent.py's sub_agents. It did not: the narrator was missing, so
+# --dry-run printed a four-step plan for a five-step pipeline. The live path was
+# always correct because it uses build_root_agent(); only the preview lied.
+PIPELINE_STEPS = ["analyst", "extractor", "diagnostician", "narrator", "reporter"]
 
 
 def print_dry_run_plan(trailer_id: str) -> None:
     print(f"CutPoint pipeline plan for trailer_id={trailer_id} (dry run, no cloud calls):")
     for i, step in enumerate(PIPELINE_STEPS, start=1):
         print(f"  {i}. {step}")
-    print("\nresolved 4-step plan. no ClickHouse, Gemini, or extractor calls were made.")
+    print(f"\nresolved {len(PIPELINE_STEPS)}-step plan. no ClickHouse, Gemini, or extractor calls were made.")
 
 
 async def run_live(trailer_id: str) -> dict:

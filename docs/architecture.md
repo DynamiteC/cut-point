@@ -94,7 +94,9 @@ flowchart TB
 The model appears in steps 3 and 4. In neither case can it produce a measurement:
 every second, percentage and count in the report is read from ClickHouse in step 1.
 The diagnostician does return two judgements of its own finding, `severity` and
-`confidence`, and those reach the report as its opinion, not as data.
+`confidence`. Only `severity` reaches the report, as its opinion rather than as
+data; `confidence` is produced, then dropped by the reporter because
+`CliffFinding` has no field for it.
 
 Step 1 used to be an `LlmAgent` transcribing `mcp-clickhouse` output into a
 Pydantic schema. `output_schema` validates the shape of a transcription, not its

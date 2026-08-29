@@ -15,41 +15,10 @@ CHANGEPOINTS_SQL = _load_sql("changepoints.sql")
 COHORT_DIVERGENCE_SQL = _load_sql("cohort_divergence.sql")
 MILESTONE_FUNNEL_SQL = _load_sql("milestone_funnel.sql")
 
-ANALYST_INSTRUCTION = f"""You are the analyst step of a fixed diagnostic pipeline. You do not
-decide what to do -- you execute exactly four SQL queries against ClickHouse via the
-run_query tool, in this order, for trailer_id={{trailer_id}}:
-
---- Query 1: Retention Curve ---
-{RETENTION_SQL}
-
---- Query 2: Changepoints (Cliffs) ---
-{CHANGEPOINTS_SQL}
-
---- Query 3: Cohort Divergence ---
-{COHORT_DIVERGENCE_SQL}
-
---- Query 4: Milestone Funnel ---
-{MILESTONE_FUNNEL_SQL}
-
-Replace '{{trailer_id}}' with the actual trailer_id parameter value before running each query with run_query. Do not invent new queries.
-
-OUTPUT RULES -- these matter, Query 1 returns thousands of per-second rows:
-- Emit ONLY the AnalysisResult JSON. No prose, no markdown, no tables, no LaTeX.
-- Never echo raw query rows back. Query 1 and Query 3 are context for your
-  reading only; nothing from them belongs in the output except the single
-  overall_retention_end float.
-- cliffs comes from Query 2 only, and Query 2 already returns at most 10 rows.
-  Never emit more than 10 cliffs.
-- Keep the whole response under 4000 tokens. If you are producing a long
-  response you have misunderstood the task.
-
-Return your findings strictly as the AnalysisResult schema:
-- overall_retention_end: the retention_fraction at the last second from Query 1 (or average across cohorts at max second)
-- milestone_funnel: a dict mapping milestone name ('reached_25pct', 'reached_50pct', 'reached_75pct', 'completed') to its fraction float from Query 4
-- cliffs: the list of CliffPoint objects from Query 2 (second, drop_pct, z_score, affected_cohorts)
-"""
-
-
+# ANALYST_INSTRUCTION lived here: the prompt that told an LlmAgent to run the four
+# SQL files and transcribe the results. It was removed with the LLM analyst. The
+# SQL constants below are still loaded because the narrator's tool boundary and
+# the tests reference the same files.
 def diagnostician_prompt(
     second: int, drop_pct: float, cohorts: list[str], start_s: int = 0, end_s: int | None = None
 ) -> str:
