@@ -19,7 +19,9 @@ from dotenv import load_dotenv
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-TRAILER_ID = "demo_001"
+# Overridable so every trailer in ground_truth.json can be demoed, not just the
+# first one: `python scripts/run_demo.py demo_002`.
+TRAILER_ID = sys.argv[1] if len(sys.argv) > 1 else "demo_001"
 EXTRACTOR_PORT = 8081
 
 
@@ -63,10 +65,17 @@ def start_extractor_service() -> subprocess.Popen:
 def main() -> int:
     load_dotenv(REPO_ROOT / ".env")
 
+    # A trailer with no injected cliffs (demo_control) never extracts a clip, so
+    # it needs no source video. Everything else does.
     video_path = REPO_ROOT / "data" / "videos" / f"{TRAILER_ID}.mp4"
     if not video_path.exists():
-        print(f"no sample video at {video_path} -- run scripts/fetch_sample_video.sh first")
-        return 1
+        import json as _json
+        gt = _json.loads((REPO_ROOT / "data" / "ground_truth.json").read_text())
+        if gt.get(TRAILER_ID, {}).get("cliffs"):
+            print(f"no sample video at {video_path} -- "
+                  f"run scripts/fetch_sample_video.sh {TRAILER_ID} first")
+            return 1
+        print(f"{TRAILER_ID} has no injected cliffs; proceeding without a source video")
 
     ensure_data_generated()
     extractor_proc = start_extractor_service()

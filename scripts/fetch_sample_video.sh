@@ -12,10 +12,18 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VIDEOS_DIR="$REPO_ROOT/data/videos"
-DEST="$VIDEOS_DIR/demo_001.mp4"
-RAW_CLIP="$VIDEOS_DIR/.bbb_10s_raw.mp4"
-SOURCE_URL="https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4"
-TARGET_DURATION_S=90
+# Usage: ./fetch_sample_video.sh [trailer_id]
+# Each trailer gets a Creative Commons Blender open movie as a stand-in source.
+# Both are CC BY 3.0, and both are attributed in data/videos/ATTRIBUTION.txt.
+TRAILER_ID="${1:-demo_001}"
+case "$TRAILER_ID" in
+    demo_001) SOURCE_URL="https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4"; TARGET_DURATION_S=90; SLUG="bbb" ;;
+    demo_002) SOURCE_URL="https://test-videos.co.uk/vids/sintel/mp4/h264/360/Sintel_360_10s_1MB.mp4";                TARGET_DURATION_S=120; SLUG="sintel" ;;
+    demo_003) SOURCE_URL="https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4";  TARGET_DURATION_S=75;  SLUG="bbb" ;;
+    *) echo "no source configured for $TRAILER_ID" >&2; exit 2 ;;
+esac
+DEST="$VIDEOS_DIR/$TRAILER_ID.mp4"
+RAW_CLIP="$VIDEOS_DIR/.${SLUG}_10s_raw.mp4"
 USER_AGENT="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
 
 mkdir -p "$VIDEOS_DIR"
@@ -29,10 +37,10 @@ echo "downloading sample video from $SOURCE_URL ..."
 curl -fsSL -A "$USER_AGENT" --max-time 60 "$SOURCE_URL" -o "$RAW_CLIP.tmp"
 mv "$RAW_CLIP.tmp" "$RAW_CLIP"
 
-echo "looping 10s clip to ${TARGET_DURATION_S}s to match demo_001's synthetic duration..."
+echo "looping 10s clip to ${TARGET_DURATION_S}s to match ${TRAILER_ID}'s synthetic duration..."
 CONCAT_LIST="$VIDEOS_DIR/.concat_list.txt"
 : > "$CONCAT_LIST"
-for _ in $(seq 1 10); do
+for _ in $(seq 1 $(( (TARGET_DURATION_S / 10) + 1 )) ); do
     echo "file '$RAW_CLIP'" >> "$CONCAT_LIST"
 done
 ffmpeg -y -f concat -safe 0 -i "$CONCAT_LIST" -t "$TARGET_DURATION_S" -c copy "$DEST"
