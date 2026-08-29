@@ -506,6 +506,7 @@ Full reports with charts: [docs/perf/README.md](docs/perf/README.md)
 |----------|---------|
 | [docs/architecture.md](docs/architecture.md) | System architecture, component boundaries, and pipeline sequence flow |
 | [docs/DEVPOST_SUBMISSION.md](docs/DEVPOST_SUBMISSION.md) | What was built, how, what went wrong, and what was learned |
+| [docs/well-architected.md](docs/well-architected.md) | Assessment against the Google Cloud Well-Architected pillars, with the real gaps |
 | [docs/BLOCKERS.md](docs/BLOCKERS.md) | Known limitations, stated plainly |
 | [docs/submission-checklist.md](docs/submission-checklist.md) | Requirement to artifact traceability |
 | [deploy/deploy_all.sh](deploy/deploy_all.sh) | Every Google Cloud resource this project creates, in order |
