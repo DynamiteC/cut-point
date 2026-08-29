@@ -28,7 +28,9 @@ def test_pipeline_order_is_fixed():
 
 def test_analyst_output_schema_validates():
     root = build_root_agent()
-    analyst = root.sub_agents[0]
+    # The analyst is wrapped so its failure cannot end the run; the LlmAgent
+    # that actually carries the schema is the wrapped one.
+    analyst = root.sub_agents[0].analyst
     assert analyst.output_schema is AnalysisResult
     assert analyst.output_key == "analysis_result"
 
@@ -186,3 +188,39 @@ def test_one_failing_clip_does_not_discard_the_others(tmp_path):
     assert len(failures) == 1
     assert failures[0]["second"] == 10
     assert "TimeoutError" in failures[0]["error"]
+
+
+async def test_a_failing_analyst_does_not_end_the_run(monkeypatch):
+    """The validator re-derives every number from ClickHouse, so the pipeline
+    does not need the analyst to succeed. It needs the analyst not to take the
+    run down with it. The observed failure was the model padding its structured
+    output with whitespace and truncating mid-JSON.
+    """
+    from agent.cutpoint_agent.steps.analyst import ResilientAnalystAgent
+
+    class ExplodingAnalyst:
+        name = "analyst_llm"
+
+        async def run_async(self, ctx):
+            raise ValueError("Invalid JSON: EOF while parsing a value")
+            yield  # pragma: no cover -- makes this an async generator
+
+    class FakeSession:
+        def __init__(self):
+            self.state = {"trailer_id": "demo_001"}
+
+    class FakeCtx:
+        def __init__(self):
+            self.session = FakeSession()
+
+    agent = ResilientAnalystAgent.model_construct(
+        name="analyst", analyst=ExplodingAnalyst()
+    )
+
+    events = [e async for e in agent._run_async_impl(FakeCtx())]
+
+    assert len(events) == 1
+    delta = events[0].actions.state_delta
+    assert "EOF while parsing" in delta["analyst_error"], "the failure must stay visible"
+    assert delta["analysis_result"]["trailer_id"] == "demo_001"
+    assert delta["analysis_result"]["cliffs"] == [], "validator fills these from the database"
