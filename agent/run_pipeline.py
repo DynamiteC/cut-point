@@ -29,6 +29,16 @@ def print_dry_run_plan(trailer_id: str) -> None:
 
 async def run_live(trailer_id: str) -> dict:
     import json as _json
+    import os as _os
+
+    from ingest.errors import MissingCredentialError
+
+    # The credential check lives here rather than in clickhouse_toolset(), so
+    # importing the agent package does not require configuration. This is the
+    # boundary where a run actually begins.
+    for _var in ("CLICKHOUSE_HOST", "GOOGLE_CLOUD_PROJECT"):
+        if not _os.environ.get(_var):
+            raise MissingCredentialError(_var)
 
     from google.adk.runners import InMemoryRunner
     from google.genai import types

@@ -11,8 +11,6 @@ from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from mcp import StdioServerParameters
 
-from ingest.errors import MissingCredentialError
-
 REQUIRED_ENV_VARS = (
     "CLICKHOUSE_HOST",
     "CLICKHOUSE_PORT",
@@ -25,9 +23,18 @@ REQUIRED_ENV_VARS = (
 
 
 def clickhouse_toolset() -> McpToolset:
-    if not os.environ.get("CLICKHOUSE_HOST"):
-        raise MissingCredentialError("CLICKHOUSE_HOST")
+    """Build the toolset. Deliberately does NOT check credentials.
 
+    agent.py exports `root_agent` at module scope, because that is the symbol
+    `adk web` and `adk run` discover. Raising here therefore made merely
+    IMPORTING the agent package require a database host, which broke test
+    collection anywhere without a .env -- CI most obviously.
+
+    Validating configuration at import time is the wrong boundary. The check now
+    lives in run_live(), where work actually starts, so a real run still fails
+    loudly and immediately. `make preflight` checks it too, and the MCP server
+    itself errors on first query if it is somehow missed.
+    """
     command, args = _server_command()
     return McpToolset(
         connection_params=StdioConnectionParams(

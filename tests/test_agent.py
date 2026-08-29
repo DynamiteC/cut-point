@@ -8,6 +8,8 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock
 
+import pytest
+
 from agent.cutpoint_agent.agent import build_root_agent
 from agent.cutpoint_agent.prompts import diagnostician_prompt
 from agent.cutpoint_agent.schemas import AnalysisResult, CliffPoint, ClipRef, ExtractionResult
@@ -258,3 +260,37 @@ def test_grounding_check_is_case_insensitive_and_ignores_other_numbers():
         "At Second 48 retention falls 13.5% across 2 cohorts.", {48}
     )
     assert ok, "percentages and cohort counts are not cliff citations"
+
+
+def test_importing_the_agent_package_needs_no_credentials(monkeypatch):
+    """agent.py exports root_agent at module scope, because that is the symbol
+    `adk web` and `adk run` discover. Building it must therefore not require
+    configuration: raising on a missing CLICKHOUSE_HOST made merely IMPORTING the
+    package fail, which broke test collection everywhere without a .env and was
+    the first thing CI hit.
+    """
+    import importlib
+
+    monkeypatch.delenv("CLICKHOUSE_HOST", raising=False)
+    monkeypatch.delenv("GOOGLE_CLOUD_PROJECT", raising=False)
+
+    import agent.cutpoint_agent.agent as agent_mod
+
+    reloaded = importlib.reload(agent_mod)
+    assert next(s.name for s in reloaded.root_agent.sub_agents) == "analyst"
+
+
+def test_run_live_still_fails_loud_on_missing_credentials(monkeypatch):
+    """Moving the check off the import path must not lose it. A real run has to
+    fail immediately and name the variable, not die deep inside the pipeline.
+    """
+    import asyncio
+
+    from agent.run_pipeline import run_live
+    from ingest.errors import MissingCredentialError
+
+    monkeypatch.delenv("CLICKHOUSE_HOST", raising=False)
+
+    with pytest.raises(MissingCredentialError) as excinfo:
+        asyncio.run(run_live("demo_001"))
+    assert "CLICKHOUSE_HOST" in str(excinfo.value)
