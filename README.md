@@ -276,22 +276,28 @@ caller identity are never served anonymously.
   └───────────────┘  └──────────────────┘   └──────────────────┘
 ```
 
-Only steps 3 and 4 involve a model, and neither can put a number in the report. Step 1 reads the
-database directly; step 4's prose is rejected if it cites a second that was not detected as a
-cliff.
+Only steps 3 and 4 involve a model, and neither produces a measurement: every second, percentage
+and count is read from ClickHouse in step 1. The diagnostician does return `severity` and
+`confidence`, which are its judgement of a cliff the database found. Step 4's prose is rejected
+if it cites a second that was not detected as a cliff.
 
 ### Data Flow (single /analyze request)
 
 1. Frontend calls `POST /analyze {trailer_id}`
 2. API facade invokes `agent/run_pipeline.py` (or the Pub/Sub push handler does, unprompted)
-3. **Analyst**: `LlmAgent` with `mcp-clickhouse` toolset executes 4 SQL templates:
+3. **Analyst**: a deterministic step (no model in the numeric path) that reads ClickHouse
+   directly over a `readonly=1` connection and runs the analysis SQL:
    - `retention_curve.sql`: per-second, per-cohort normalized retention
    - `changepoints.sql`: MAD-based z-score cliff detection (z > 3, drop >= 3%)
    - `cohort_divergence.sql`: surface demographic-specific cliffs
    - `milestone_funnel.sql`: 25/50/75/complete via `windowFunnel()`
-4. **Validator**: re-runs `changepoints.sql`, `milestone_funnel.sql` and `retention_curve.sql`
-   over a `readonly=1` connection and replaces every number the analyst produced. Divergence is
-   recorded as a `ValidationReport`. Zero rows raises rather than reporting "no cliffs found"
+
+   An `LlmAgent` did this job first. It reported a cliff that did not exist and missed the three
+   that did, so the model was taken off the numbers entirely. Zero source rows raises rather than
+   reporting "no cliffs found". The provenance is recorded in a `ValidationReport`.
+4. **Validator**: the module (`validator.validate()`) that measured the old model against the
+   database and is kept as the evidence for why the numeric path is model-free. Its query helpers
+   (`query_cliffs`, `query_funnel`, `query_retention_end`) are what the analyst now calls directly.
 5. **Extractor**: for each verified cliff, clips [second-5, second+5] via HTTP. In the cloud the
    clip is uploaded to GCS and a `gs://` URI is returned, because the diagnostician runs in a
    different container
@@ -541,10 +547,11 @@ Full reports with charts: [docs/perf/README.md](docs/perf/README.md)
 
 - **Pre-commit check**: Run `make smoke` before every push. It starts ClickHouse, verifies
   all services respond, and runs the pipeline in dry-run mode in under 60 seconds.
-- **Testing**: `uv run pytest -v` runs the full suite (71 tests). Chaos tests validate
+- **Testing**: `uv run pytest -v` runs the full suite (82 tests). Chaos tests validate
   failure modes. Load/stress/soak run as standalone scripts via Makefile targets.
-- **No frontend in this repo**: `docs/frontend-spec.md` is a complete build prompt for
-  Replit Agent. The REST facade at `api/main.py` provides the stable contract.
+- **Frontend**: `index.html` is the landing page and `app.html` is the working UI, both
+  hosted on GitHub Pages and reading live from the deployed API. The REST facade at
+  `api/main.py` provides the stable contract; `docs/frontend-spec.md` documents it.
 - **Read-only agent access**: All agent ClickHouse queries go through `mcp-clickhouse`.
   Direct `clickhouse-connect` is confined to `ingest/` and `make schema`.
 - **Mocks live only in tests**: No silent stubs. Missing credentials produce

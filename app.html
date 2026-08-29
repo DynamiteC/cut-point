@@ -26,8 +26,10 @@
     --signal-red-subtle: rgba(193, 56, 43, 0.08);
     --signal-green: #1f7a4d;
 
+    /* Token names kept identical to index.html so the two pages share one
+       typography system: display serif, sans body, mono for labels/code. */
     --font-display: Georgia, "Iowan Old Style", "Times New Roman", serif;
-    --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     --code-fg: #e8eaed;
     --code-comment: #8a94a6;
@@ -46,7 +48,7 @@
   body {
     background: var(--surface-base);
     color: var(--text-primary);
-    font-family: var(--font-body);
+    font-family: var(--font-sans);
     font-size: 16px;
     line-height: 1.55;
     -webkit-font-smoothing: antialiased;
@@ -129,7 +131,9 @@
   .curve { padding: 24px 28px 18px; }
   .curve h2, .cliffs h2 { font-family: var(--font-display); font-size: 20px; color: var(--text-dark); font-weight: 600; }
   .curve .sub { font-size: 13px; color: var(--text-tertiary); margin-top: 3px; }
-  svg { display: block; width: 100%; height: auto; margin-top: 16px; overflow: visible; }
+  /* Scoped to the retention chart only. A bare `svg { margin-top:16px }` also
+     caught the header brand mark and pushed it 8px below the wordmark. */
+  .curve svg { display: block; width: 100%; height: auto; margin-top: 16px; overflow: visible; }
   .axis { font-family: var(--font-mono); font-size: 10px; fill: var(--text-tertiary); }
 
   /* ---------- cliff cards ---------- */
@@ -166,7 +170,7 @@
   }
   input[type=text]:focus { outline: 2px solid var(--cta-blue); outline-offset: -1px; border-color: transparent; }
   button.go {
-    font-family: var(--font-body); font-size: 14px; padding: 9px 18px; cursor: pointer;
+    font-family: var(--font-sans); font-size: 14px; padding: 9px 18px; cursor: pointer;
     background: var(--text-dark); color: #fff; border: 1px solid var(--text-dark); border-radius: var(--radius-small);
   }
   button.go:hover { background: #000; }
@@ -214,7 +218,7 @@
 </header>
 
 <div class="wrap hero">
-  <h1>Find the second people stop watching.</h1>
+  <h1>Find the second when people stop watching.</h1>
   <p class="lede">
     The database finds the exact second when many people leave. Gemini then looks at those
     frames and says what is on the screen. This page shows the result. It reads the reports
@@ -257,8 +261,8 @@ curl -X POST <span id="curlbase2">…</span>/analyze \
 
 <footer>
   <div class="wrap">
-    The reports come from Firestore, through Cloud Run. Every number comes from the database.
-    No model makes a number.
+    The reports come from Firestore, through Cloud Run. Every measurement comes from the
+    database. A model writes the words and rates each moment; it measures nothing.
     <a href="https://github.com/DynamiteC/cut-point/blob/main/docs/architecture.md">How it is built</a>
   </div>
 </footer>
@@ -396,7 +400,7 @@ curl -X POST <span id="curlbase2">…</span>/analyze \
       var grid = el("div", "prov");
       [
         [String(v.source_rows), "rows of watch data read", false],
-        [String(v.llm_cliff_count), "numbers made by a model", true],
+        [String(v.llm_cliff_count), "measurements made by a model", true],
         [String(v.verified_cliff_count), "drops found by the database", false],
         [pct(notes.overall_retention_end), "people still watching at the end", false]
       ].forEach(function (m) {
@@ -407,10 +411,11 @@ curl -X POST <span id="curlbase2">…</span>/analyze \
       });
       pw.appendChild(grid);
       pw.appendChild(el("div", "prov-note",
-        "Every number above comes from the database, read over a connection that cannot "
-        + "change anything. A model looks at frames and writes words. A model never makes a "
-        + "number. This shows you where each number came from. It does not prove the number "
-        + "is right; for that, see the detector tests in the repository."));
+        "Every measurement above comes from the database, read over a connection that "
+        + "cannot change anything. A model looks at frames, writes the words, and rates how "
+        + "bad each moment is on a 1 to 5 scale. A model never measures anything. This shows "
+        + "you where each measurement came from. It does not prove the measurement is right; "
+        + "for that, see the detector tests in the repository."));
       out.appendChild(pw);
     }
 

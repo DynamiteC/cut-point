@@ -33,7 +33,7 @@ Trace; that is the single highest-value remaining operational improvement.
 | Authorization boundary | Read endpoints public so the UI needs no credential; every endpoint that spends money is authenticated. The watcher and extractor are private at the platform level. |
 | Least privilege | The extractor is `--no-allow-unauthenticated` because it shells out to ffmpeg. GCS reads are confined to the configured bucket, since the service account holds `storage.objectAdmin` project-wide. |
 | Injection | `trailer_id` and `job_id` constrained to `^[a-zA-Z0-9_-]{1,64}$` at the API boundary, and re-validated in `store.py` and the watcher for callers that do not come through FastAPI. `changepoints.sql` interpolates the id into query text, so ids read out of the database are validated too. |
-| Database access | The analyst and watcher run fixed `.sql` files over a connection pinned to `readonly=1` at the session level, so the server itself refuses a write (verified: ClickHouse error 164). The narrator's tool access goes through `mcp-clickhouse`, read-only by construction. Read-write `clickhouse-connect` is confined to `ingest/`. |
+| Database access | The analyst and watcher run fixed `.sql` files over a connection pinned to `readonly=1` at the session level, so the server itself refuses a write (verified: ClickHouse error 164; pinned by a test, because the watcher previously took a read-write connection while four documents said otherwise). The narrator's tool access goes through `mcp-clickhouse`, read-only by construction. Read-write `clickhouse-connect` is confined to `ingest/`. |
 | Output encoding | The HTML report autoescapes. It did not: `select_autoescape(["html"])` matches the final extension and the template is `report.html.jinja`, so free-form model output was written verbatim into a page served as `text/html`. |
 | Data exposure | `GET /jobs/{id}` returns an allowlist of progress fields. Raw exception text and caller identity are never served anonymously. ffmpeg and ffprobe stderr, which echoes the input URI, is logged rather than returned. |
 | Secrets | No credentials in code. `.env` is gitignored, never committed, and excluded from both the Docker build context and the gcloud source upload. |
@@ -56,7 +56,7 @@ ClickHouse Cloud has never been exercised.
 | Timeouts | 120s on the Vertex call, 30s on the extractor HTTP call, 10s on ClickHouse connect, 600s Pub/Sub ack deadline covering a full pipeline run. |
 | Bounded retries | A failed scan returns 200 with `status: degraded` rather than a 5xx, because Pub/Sub redelivers on 5xx and an unreachable database is not something a redelivery fixes. Retention is capped at one hour with 60-600s backoff. |
 | Data integrity | Ingest checkpoints carry a fingerprint of the file they belong to, so a regenerated events file cannot cause the loader to skip the head of the new one. |
-| Tested | 80 tests, including four chaos scenarios (ClickHouse unreachable, extractor down, corrupt video, Gemini timeout). |
+| Tested | 82 tests, including four chaos scenarios (ClickHouse unreachable, extractor down, corrupt video, Gemini timeout). |
 
 **Gaps.** No multi-region anything. `--max-instances=1` is a cost choice that is also a
 single point of failure. No dead-letter topic; a permanently poisonous message is dropped when
@@ -102,7 +102,7 @@ trailer whose report already exists re-runs the whole pipeline.
 
 | | |
 |---|---|
-| The model is not trusted with facts | It is not in the numeric path at all. Step 1 reads cliffs, funnel and retention from ClickHouse directly. This is the result of a measurement, not a preference: as an `LlmAgent` that step reported a cliff at second 2 that does not exist and missed all three that do, so it was replaced. The comparison is kept in `validator.validate()` and its tests as the evidence. |
+| The model is not trusted with measurements | It is not in the analytics path at all. It does produce two judgements of its own finding, `severity` (1-5) and `confidence` (0-1), and those reach the report; they are its opinion of a cliff the database found, never a measurement of one. Step 1 reads cliffs, funnel and retention from ClickHouse directly. This is the result of a measurement, not a preference: as an `LlmAgent` that step reported a cliff at second 2 that does not exist and missed all three that do, so it was replaced. The comparison is kept in `validator.validate()` and its tests as the evidence. |
 | The model's language output is checked too | `summary_is_grounded()` rejects a narrator summary citing any second that was not detected as a cliff, falling back to the deterministic template. This exists because the narrator's first version, given an instruction that named the state keys instead of interpolating them, received no data and invented a CGI explosion and a viewer count. |
 | The model is not trusted with control flow | Step order is fixed in code by `SequentialAgent`. No model chooses what runs next. |
 | The model is not a dependency | A failing analyst is contained, not fatal. |

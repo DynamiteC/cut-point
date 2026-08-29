@@ -154,3 +154,40 @@ def test_an_unreachable_database_does_not_ask_pubsub_to_retry_forever(monkeypatc
     body = response.json()
     assert body["status"] == "degraded"
     assert "ConnectionRefusedError" in body["error"]
+
+
+def test_the_watcher_uses_a_readonly_connection(monkeypatch) -> None:
+    """Four documents claimed the watcher pins readonly=1 at the session level.
+    It used the read-write client. A public document asserting a security
+    property the code does not have is worse than not claiming it, so this pins
+    the behaviour rather than the prose.
+    """
+    import services.watcher.main as watcher
+
+    monkeypatch.setenv("CUTPOINT_REQUIRE_AUTH", "false")
+    used = {}
+
+    class FakeClient:
+        def query(self, sql, parameters=None):
+            return FakeResult([])
+
+        def close(self):
+            pass
+
+    def fake_readonly(*args, **kwargs):
+        used["readonly"] = True
+        return FakeClient()
+
+    def fake_readwrite(*args, **kwargs):
+        used["readwrite"] = True
+        return FakeClient()
+
+    monkeypatch.setattr("ingest.clickhouse_client.get_readonly_client", fake_readonly)
+    monkeypatch.setattr("ingest.clickhouse_client.get_ingest_client", fake_readwrite)
+
+    from fastapi.testclient import TestClient
+
+    TestClient(watcher.app).post("/pubsub/scan", json={"message": {"data": "e30="}})
+
+    assert used.get("readonly"), "the watcher must use the read-only client"
+    assert not used.get("readwrite"), "the watcher must never take a write connection"

@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CutPoint — Multimodal Video Retention AI Agent</title>
+<title>CutPoint: Multimodal Video Retention AI Agent</title>
 <meta name="description" content="AI Agent that pinpoints where video audiences disengage with ClickHouse OLAP analytics, and diagnoses why using Google Cloud Vertex AI Gemini multimodal perception.">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <style>
   /* ====================================================================
-     Design tokens — Langfuse-inspired design system (warm off-white
+     Design tokens: Langfuse-inspired design system (warm off-white
      surfaces, neon-yellow highlight, sharp geometry, dual typeface).
      Self-contained: no external fonts/CDN, system-font fallback stacks
      stand in for f37Analog / Inter / geistMono per the token spec.
@@ -29,7 +29,7 @@
     --neon-yellow: #fbff7a;
     --button-grey-surface: rgba(64, 61, 57, 0.08);
     --button-grey-surface-hover: rgba(64, 61, 57, 0.14);
-    /* Functional signal color — not part of the extracted brand palette,
+    /* Functional signal color, not part of the extracted brand palette,
        required for severity/drop indicators in the retention diagnosis. */
     --signal-red: #c1382b;
     --signal-red-subtle: rgba(193, 56, 43, 0.08);
@@ -599,7 +599,7 @@
   footer.main-footer a:hover { color: var(--text-dark); }
 
   /* ====================================================================
-     Responsive tiers — tablet (>=640px), desktop (>=1024px), wide (>=1520px)
+     Responsive tiers: tablet (>=640px), desktop (>=1024px), wide (>=1520px)
      ==================================================================== */
   @media (min-width: 640px) {
     .nav-pills { display: flex; }
@@ -673,7 +673,7 @@
       <span>Live on Google Cloud &bull; Gemini 3.5 Flash &bull; ClickHouse</span>
     </div>
     <h1 class="hero-title">
-      Find the second people <span class="highlight">stop watching.</span>
+      Find the second when people <span class="highlight">stop watching.</span>
     </h1>
     <p class="hero-subtitle">
       CutPoint reads how long each person watches a video. It finds the exact second when many
@@ -719,15 +719,15 @@
             <div class="f-label">started</div>
           </div>
           <div class="funnel-card">
-            <div class="f-val" id="f-25">&mdash;</div>
+            <div class="f-val" id="f-25">&middot;</div>
             <div class="f-label">still watching at 25%</div>
           </div>
           <div class="funnel-card">
-            <div class="f-val" id="f-50">&mdash;</div>
+            <div class="f-val" id="f-50">&middot;</div>
             <div class="f-label">still watching at 50%</div>
           </div>
           <div class="funnel-card">
-            <div class="f-val" id="f-end">&mdash;</div>
+            <div class="f-val" id="f-end">&middot;</div>
             <div class="f-label">watched to the end</div>
           </div>
         </div>
@@ -754,24 +754,24 @@
 
         <div class="diag-card" id="diag-container">
           <div class="diag-header">
-            <div class="diag-title" id="diag-title">&mdash;</div>
-            <span class="severity-pill" id="diag-sev">&mdash;</span>
+            <div class="diag-title" id="diag-title">&middot;</div>
+            <span class="severity-pill" id="diag-sev">&middot;</span>
           </div>
 
           <div class="diag-grid">
             <div class="diag-cell">
               <span class="tag">// What is on the screen</span>
-              <strong id="diag-screen">&mdash;</strong>
+              <strong id="diag-screen">&middot;</strong>
             </div>
             <div class="diag-cell">
               <span class="tag">// Who left</span>
-              <span id="diag-cohorts" style="color: var(--cta-blue); font-family: var(--font-mono);">&mdash;</span>
+              <span id="diag-cohorts" style="color: var(--cta-blue); font-family: var(--font-mono);">&middot;</span>
             </div>
           </div>
 
           <div class="rec-banner">
-            <span class="rec-badge" id="diag-action">&mdash;</span>
-            <div><strong>What to do:</strong> <span id="diag-rec">&mdash;</span></div>
+            <span class="rec-badge" id="diag-action">&middot;</span>
+            <div><strong>What to do:</strong> <span id="diag-rec">&middot;</span></div>
           </div>
         </div>
 
@@ -787,8 +787,8 @@
     <h2 class="section-h2">How CutPoint works</h2>
     <p class="section-desc">
       The five steps always run in the same order. The code sets that order. A model never
-      chooses what happens next. A model also never makes a number. Every number in the report
-      comes from the database.
+      chooses what happens next. Every measurement comes from the database: the seconds, the
+      percentages and the counts. A model only rates how bad a moment is, and how sure it is.
     </p>
 
     <div class="pipeline-grid">
@@ -899,10 +899,11 @@
 
       <div class="step-card">
         <div class="step-num">TRUST</div>
-        <div class="step-title">0 numbers from a model</div>
+        <div class="step-title">0 measurements from a model</div>
         <div class="step-body">
-          A model writes the words in the report. A model never writes a number. Every figure
-          comes from the database. Each report shows this count, so you can check it yourself.
+          A model writes the words, and rates how bad each moment is. A model never measures
+          anything. Every second, percentage and count comes from the database. Each report
+          shows this figure, so you can check it yourself.
         </div>
         <span class="step-badge">app.html</span>
       </div>
@@ -950,7 +951,7 @@
         var n = document.getElementById(id);
         if (n) n.textContent = value;
       }
-      function pct(x) { return typeof x === "number" ? Math.round(x * 100) + "%" : "\u2014"; }
+      function pct(x) { return typeof x === "number" ? Math.round(x * 100) + "%" : "\u00b7"; }
 
       function draw(notes) {
         // Milestones only, clamped so the line can never rise: retention is a
@@ -993,17 +994,17 @@
           return;
         }
         card.style.display = "block";
-        txt("diag-title", "Second " + worst.second + " \u2014 " +
+        txt("diag-title", "Second " + worst.second + ": " +
             (worst.drop_pct * 100).toFixed(1) + "% of people left here");
         txt("diag-sev", "severity " + worst.severity + "/5");
-        txt("diag-screen", worst.on_screen || "\u2014");
-        txt("diag-cohorts", (worst.affected_cohorts || []).join(", ") || "\u2014");
+        txt("diag-screen", worst.on_screen || "\u00b7");
+        txt("diag-cohorts", (worst.affected_cohorts || []).join(", ") || "\u00b7");
         var rec = (worst.recommendations || [])[0];
-        txt("diag-action", rec ? rec.action.replace(/_/g, " ") : "\u2014");
+        txt("diag-action", rec ? rec.action.replace(/_/g, " ") : "\u00b7");
         txt("diag-rec", rec
           ? "Change the video between second " + rec.target_range_s[0] +
             " and second " + rec.target_range_s[1] + "."
-          : "\u2014");
+          : "\u00b7");
         txt("demo-status", "Live from the deployed API. Every number above comes from the database.");
       }
 

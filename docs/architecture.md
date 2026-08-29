@@ -91,8 +91,10 @@ flowchart TB
 
 ## The determinism boundary
 
-The model appears in steps 3 and 4, and in neither case can it put a number in
-the report.
+The model appears in steps 3 and 4. In neither case can it produce a measurement:
+every second, percentage and count in the report is read from ClickHouse in step 1.
+The diagnostician does return two judgements of its own finding, `severity` and
+`confidence`, and those reach the report as its opinion, not as data.
 
 Step 1 used to be an `LlmAgent` transcribing `mcp-clickhouse` output into a
 Pydantic schema. `output_schema` validates the shape of a transcription, not its

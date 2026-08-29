@@ -121,10 +121,10 @@ def pubsub_scan(envelope: dict, caller: str = Depends(verify_google_identity)) -
         except Exception as exc:
             raise HTTPException(status_code=400, detail="message.data is not base64") from exc
 
-    from ingest.clickhouse_client import get_ingest_client
+    from ingest.clickhouse_client import get_readonly_client
 
     try:
-        client = get_ingest_client()
+        client = get_readonly_client()
     except Exception as exc:  # noqa: BLE001 -- classified and reported below
         return _degraded("connect", exc)
 
