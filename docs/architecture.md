@@ -100,7 +100,11 @@ digit or an invented cliff passes silently. Step 2 therefore re-runs the same fi
 and `overall_retention_end`, recording any divergence in the report as a `ValidationReport`.
 
 On a real run the analyst reported one cliff at second 2, which does not exist in the database,
-and missed all three real ones at 48, 23 and 69. The validator corrected all of it. Step 1 is
+and missed all three real ones at 48, 23 and 69. The validator corrected all of it.
+
+What this guarantees is provenance and reproducibility, not correctness. A wrong query would be
+re-derived wrongly every time. Detector accuracy is evidenced separately, in
+`tests/test_detector.py`, against injected ground truth with a false-positive control. Step 1 is
 additionally wrapped so that its failure writes an empty result and continues rather than ending
 the run, which makes the model a convenience rather than a correctness dependency.
 

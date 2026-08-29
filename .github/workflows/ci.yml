@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff check .
+
+      # No cloud credentials in CI. CUTPOINT_STORE defaults to "local" and
+      # CUTPOINT_REQUIRE_AUTH is set per-test, so the suite runs fully offline:
+      # Vertex AI is mocked at the injectable-client boundary and ClickHouse
+      # tests skip when no server is reachable.
+      - name: Test
+        run: uv run pytest -v --ignore=tests/load --ignore=tests/soak --ignore=tests/stress

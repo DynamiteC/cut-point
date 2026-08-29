@@ -91,6 +91,23 @@ services, each pinned to `--min-instances=0 --max-instances=1`.
 **Run `./deploy/teardown.sh` after judging** to stop all charges. Add `--purge-data` to also
 remove Firestore contents and the bucket.
 
+### A note on the running deployment
+
+The services are deployed and the endpoints above are live, but the deployment is deliberately
+cost-managed rather than left running hot:
+
+- **Cloud Scheduler is paused.** An enabled `*/15` tick wakes the watcher 96 times a day
+  indefinitely. Resume it to watch the loop run, then pause it again.
+- **The paid endpoints return 401 by design.** Each call runs ClickHouse queries, an ffmpeg
+  extraction per cliff and a Gemini video inference per clip, so they require a verified Google
+  OIDC token from an allowlisted service account rather than being open to the internet.
+- **There is a daily ceiling** of 25 analyses and a concurrency cap of 2.
+
+The All Things Agentic rules state an application "does not need to be publicly accessible or
+deployed at the exact moment of submission or judging" provided deployment is demonstrated. The
+demo video shows the full loop executing, alongside the Cloud Run dashboard, the Pub/Sub
+subscriptions and Vertex AI logs. `GET /report/demo_001` returns a real report right now.
+
 ### Verify the autonomous loop
 
 ```bash
@@ -150,6 +167,10 @@ transposed digit, a missed cliff or an invented one passes validation silently.
 Step 2 re-runs the same fixed SQL over a `readonly=1` connection and treats ClickHouse as
 authoritative for cliffs, `milestone_funnel` and `overall_retention_end`. The divergence is
 recorded in the report as a `ValidationReport`.
+
+This buys provenance and reproducibility, not correctness: if the SQL is wrong the numbers are
+wrong, reproducibly. Detector accuracy is a separate claim, evidenced by `tests/test_detector.py`
+against injected ground truth with `demo_control` as a non-circular false-positive control.
 
 This is not hypothetical. On a real run the analyst reported one cliff, at second 2, which does
 not exist in the database, and missed all three real ones:

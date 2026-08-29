@@ -22,8 +22,16 @@ class AnalysisResult(BaseModel):
 
 
 class ValidationReport(BaseModel):
-    """Evidence that the numbers in the report came from ClickHouse, not the LLM."""
+    """Evidence that the numbers came from ClickHouse rather than from a model.
 
+    This establishes provenance and reproducibility, NOT correctness. If the SQL
+    is wrong the numbers are wrong, reproducibly. Detector accuracy is a separate
+    claim, evidenced by tests/test_detector.py against injected ground truth with
+    demo_control as a non-circular false-positive control.
+    """
+
+    # True when the model's transcription happened to agree with the database.
+    # It does not mean the database is right.
     verified: bool
     source_rows: int
     llm_cliff_count: int
