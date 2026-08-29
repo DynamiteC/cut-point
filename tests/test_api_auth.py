@@ -60,3 +60,32 @@ def test_read_only_endpoints_stay_public() -> None:
     # The GitHub Pages UI fetches these cross-origin with no credential.
     assert client.get("/health").status_code == 200
     assert client.get("/trailers").status_code == 200
+
+
+def test_public_job_status_never_leaks_internals(monkeypatch, tmp_path) -> None:
+    """GET /jobs/{id} is unauthenticated so the UI can poll progress. A failed
+    job's raw exception text carries database hostnames, ports and connection
+    strings, and requested_by carries a caller identity. Neither may be served
+    to an anonymous caller.
+    """
+    from agent.cutpoint_agent import store
+
+    monkeypatch.setenv("CUTPOINT_STORE", "local")
+    monkeypatch.setattr(store, "JOBS_DIR", tmp_path / "jobs")
+    store.save_job(
+        "abc123",
+        {
+            "job_id": "abc123",
+            "trailer_id": "demo_001",
+            "status": "failed",
+            "requested_by": "runtime-sa@example.iam.gserviceaccount.com",
+            "error": "OperationalError: HTTPConnectionPool(host='db.internal', port=8443)",
+        },
+    )
+
+    body = client.get("/jobs/abc123").json()
+
+    assert body["status"] == "failed"
+    assert "error" not in body, "raw exception text must not reach an anonymous caller"
+    assert "requested_by" not in body, "caller identity must not be public"
+    assert "db.internal" not in str(body)

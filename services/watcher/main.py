@@ -155,9 +155,8 @@ def _degraded(stage: str, exc: Exception) -> dict:
     detail = f"{type(exc).__name__}: {exc}"[:500]
     print(f"[watcher] SCAN FAILED at {stage}: {detail}")
     try:
-        store.save_job(
-            "_last_error",
-            {"stage": stage, "error": detail, "component": "watcher"},
+        store.save_watch_error(
+            {"stage": stage, "error": detail, "component": "watcher"}
         )
     except Exception as store_exc:  # noqa: BLE001 -- never mask the original
         print(f"[watcher] could not record the failure: {store_exc}")

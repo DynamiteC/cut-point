@@ -195,6 +195,12 @@ COMMON_ENV="${COMMON_ENV}@@GOOGLE_GENAI_USE_VERTEXAI=TRUE"
 COMMON_ENV="${COMMON_ENV}@@GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.5-flash}"
 COMMON_ENV="${COMMON_ENV}@@CUTPOINT_STORE=firestore"
 COMMON_ENV="${COMMON_ENV}@@CUTPOINT_ANALYZE_TOPIC=${ANALYZE_TOPIC}"
+# Pinning CUTPOINT_AUDIENCE proves a token was minted FOR this service; it does
+# not prove the caller is allowed to use it. Any attacker-controlled service
+# account -- free to create in their own GCP project -- can mint a token for an
+# arbitrary audience, so audience alone still let a stranger run the paid
+# pipeline. The allowlist is what actually authorizes.
+COMMON_ENV="${COMMON_ENV}@@CUTPOINT_ALLOWED_INVOKERS=${PUSH_SA},${RUNTIME_SA}"
 COMMON_ENV="${COMMON_ENV}@@CLICKHOUSE_HOST=${CLICKHOUSE_HOST:-}"
 COMMON_ENV="${COMMON_ENV}@@CLICKHOUSE_PORT=${CLICKHOUSE_PORT:-8443}"
 COMMON_ENV="${COMMON_ENV}@@CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}"

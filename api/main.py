@@ -156,12 +156,27 @@ def _publish(trailer_id: str, job_id: str) -> None:
     ).result(timeout=30)
 
 
+# Fields safe to hand to an anonymous caller. Deliberately a allowlist, not a
+# denylist: `error` carries raw exception text (database hostnames, ports,
+# connection strings) and `requested_by` carries a caller identity, and neither
+# belongs in a public response. The UI only needs progress.
+PUBLIC_JOB_FIELDS = ("job_id", "trailer_id", "status", "created_at", "started_at", "finished_at")
+
+
 @app.get("/jobs/{job_id}")
 def get_job(job_id: str = PathParam(..., pattern=JOB_ID_PATTERN)) -> dict:
     job = store.load_job(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"no job {job_id}")
-    return job
+    public = {k: v for k, v in job.items() if k in PUBLIC_JOB_FIELDS}
+    if not public:
+        # A stored document with no public fields is not a job anyone can poll
+        # (the watcher's old _last_error record is one). Do not answer 200 {}.
+        raise HTTPException(status_code=404, detail=f"no job {job_id}")
+    if job.get("status") == "failed":
+        # Say that it failed without saying what the internals were.
+        public["detail"] = "analysis failed; see server logs"
+    return public
 
 
 @app.post("/pubsub/analyze")

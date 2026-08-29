@@ -94,6 +94,16 @@ def load_job(job_id: str) -> dict[str, Any] | None:
     return _get(JOBS_COLLECTION, JOBS_DIR, job_id)
 
 
+def save_watch_error(payload: dict[str, Any]) -> None:
+    """Record a failed scan in the watch collection, not the jobs collection.
+
+    Jobs are readable unauthenticated (the UI polls status), and this record has
+    a fixed, guessable id. Writing raw exception text there published internal
+    infrastructure details to anyone who requested /jobs/_last_error.
+    """
+    _put(WATCH_COLLECTION, WATCH_DIR, "_last_error", payload)
+
+
 def get_fingerprint(trailer_id: str) -> str | None:
     doc = _get(WATCH_COLLECTION, WATCH_DIR, trailer_id)
     return doc.get("fingerprint") if doc else None
