@@ -15,3 +15,12 @@ build/
 # config lives in config/clickhouse/ and is committed; the data and its backups
 # are local-only.
 backups/
+
+# ClickHouse server runtime state. The local server writes these into the repo
+# root, and `git add -A` swept them into a commit: 80KB of startup logs plus
+# empty access-control stubs. .dockerignore and .gcloudignore already excluded
+# them; git did not.
+access/
+preprocessed_configs/
+server.log
+server.err.log
