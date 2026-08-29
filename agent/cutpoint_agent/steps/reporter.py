@@ -13,6 +13,7 @@ from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
 from google.adk.events.event_actions import EventActions
 
+from agent.cutpoint_agent import store
 from agent.cutpoint_agent.prompts import REPORTER_ACTION_BY_SEVERITY
 from agent.cutpoint_agent.schemas import (
     AnalysisResult,
@@ -110,6 +111,11 @@ class ReporterAgent(BaseAgent):
             analysis.trailer_id, title, duration_s, analysis, extraction, diagnoses
         )
         report_path = write_report_json(notes)
+        # On Cloud Run the line above lands on an ephemeral per-instance disk that
+        # the instance serving GET /report will never see. In firestore mode the
+        # durable copy is what the API actually reads back.
+        if store.using_firestore():
+            store.save_report(analysis.trailer_id, notes.model_dump(mode="json"))
 
         yield Event(
             author=self.name,

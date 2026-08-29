@@ -8,15 +8,29 @@ import json
 import sys
 from pathlib import Path
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import Environment, FileSystemLoader
 
 from agent.cutpoint_agent.schemas import DirectorsNotes
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
+def _autoescape(template_name: str | None) -> bool:
+    """Escape the HTML template, never the Markdown one.
+
+    select_autoescape(["html"]) matches on the FINAL extension, so
+    "report.html.jinja" ends in ".jinja" and fell through to default=False.
+    Autoescaping was therefore off for the one template that emits HTML, and
+    every free-form Gemini string (on_screen, hypothesis, rationale,
+    executive_summary, title) was written verbatim into a page api/main.py
+    serves back as text/html. Escaping the Markdown template instead would
+    corrupt it, so match on ".html" anywhere in the name.
+    """
+    return bool(template_name) and ".html" in template_name
+
+
 _env = Environment(
     loader=FileSystemLoader(str(TEMPLATES_DIR)),
-    autoescape=select_autoescape(["html"]),
+    autoescape=_autoescape,
 )
 
 
