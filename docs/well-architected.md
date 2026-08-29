@@ -18,8 +18,8 @@ scores itself full marks is not worth reading.
 | Config validation | `api/main.py::_validate_cloud_config` refuses to start a cloud deployment missing `GOOGLE_CLOUD_PROJECT`, `GEMINI_MODEL` or `CLICKHOUSE_HOST`, and warns loudly if auth has been disabled on a deployed revision. |
 | Health | `GET /health` on the API and watcher. Not `/healthz`: Google's frontend intercepts that path on Cloud Run and answers 404 without reaching the container. |
 
-**Gaps, stated plainly.** There is no CI. Nothing runs the 75 tests automatically on push. There
-are no metrics and no dashboards, only logs, so there is no request-duration histogram or error
+**Gaps, stated plainly.** CI runs ruff and pytest on push but gates on nothing else; there is no
+coverage threshold. There are no metrics and no dashboards, only logs, so there is no request-duration histogram or error
 rate per endpoint. ADK 2.x emits OpenTelemetry spans natively and they are not exported to Cloud
 Trace; that is the single highest-value remaining operational improvement.
 
@@ -33,7 +33,7 @@ Trace; that is the single highest-value remaining operational improvement.
 | Authorization boundary | Read endpoints public so the UI needs no credential; every endpoint that spends money is authenticated. The watcher and extractor are private at the platform level. |
 | Least privilege | The extractor is `--no-allow-unauthenticated` because it shells out to ffmpeg. GCS reads are confined to the configured bucket, since the service account holds `storage.objectAdmin` project-wide. |
 | Injection | `trailer_id` and `job_id` constrained to `^[a-zA-Z0-9_-]{1,64}$` at the API boundary, and re-validated in `store.py` and the watcher for callers that do not come through FastAPI. `changepoints.sql` interpolates the id into query text, so ids read out of the database are validated too. |
-| Database access | Agent queries go through `mcp-clickhouse`, read-only by construction. The validator and watcher additionally pin `readonly=1` at the session level, so the server refuses a write (verified: ClickHouse error 164). Read-write `clickhouse-connect` is confined to `ingest/`. |
+| Database access | The analyst and watcher run fixed `.sql` files over a connection pinned to `readonly=1` at the session level, so the server itself refuses a write (verified: ClickHouse error 164). The narrator's tool access goes through `mcp-clickhouse`, read-only by construction. Read-write `clickhouse-connect` is confined to `ingest/`. |
 | Output encoding | The HTML report autoescapes. It did not: `select_autoescape(["html"])` matches the final extension and the template is `report.html.jinja`, so free-form model output was written verbatim into a page served as `text/html`. |
 | Data exposure | `GET /jobs/{id}` returns an allowlist of progress fields. Raw exception text and caller identity are never served anonymously. ffmpeg and ffprobe stderr, which echoes the input URI, is logged rather than returned. |
 | Secrets | No credentials in code. `.env` is gitignored, never committed, and excluded from both the Docker build context and the gcloud source upload. |
@@ -50,13 +50,13 @@ ClickHouse Cloud has never been exercised.
 | | |
 |---|---|
 | Failure isolation | One clip failing to diagnose is recorded and skipped; it does not discard the other findings or the extraction spend behind them. All clips failing still raises, because that is an outage and not a report. |
-| Model failure | The analyst is wrapped so that its failure writes an empty result and continues. The validator then supplies every number from the database. A hallucinating, timing-out or truncating model cannot end a run or corrupt a report. |
+| Model failure | No model is in the numeric path, so a hallucinating, timing-out or truncating model cannot corrupt a number. A narrator failure or an ungrounded summary falls back to the deterministic template, so it costs prose rather than the run. |
 | Idempotency | The watcher fingerprints the cliff set in Firestore and publishes only on a real change. A redelivered Pub/Sub message for a completed job is a no-op rather than a re-spend. |
 | Durable state | Reports, jobs and fingerprints live in Firestore, not on a Cloud Run instance's ephemeral disk. |
 | Timeouts | 120s on the Vertex call, 30s on the extractor HTTP call, 10s on ClickHouse connect, 600s Pub/Sub ack deadline covering a full pipeline run. |
 | Bounded retries | A failed scan returns 200 with `status: degraded` rather than a 5xx, because Pub/Sub redelivers on 5xx and an unreachable database is not something a redelivery fixes. Retention is capped at one hour with 60-600s backoff. |
 | Data integrity | Ingest checkpoints carry a fingerprint of the file they belong to, so a regenerated events file cannot cause the loader to skip the head of the new one. |
-| Tested | 75 tests, including four chaos scenarios (ClickHouse unreachable, extractor down, corrupt video, Gemini timeout). |
+| Tested | 80 tests, including four chaos scenarios (ClickHouse unreachable, extractor down, corrupt video, Gemini timeout). |
 
 **Gaps.** No multi-region anything. `--max-instances=1` is a cost choice that is also a
 single point of failure. No dead-letter topic; a permanently poisonous message is dropped when
@@ -102,10 +102,11 @@ trailer whose report already exists re-runs the whole pipeline.
 
 | | |
 |---|---|
-| The model is not trusted with facts | The analyst transcribes tool output into a schema, and `output_schema` validates shape, not numbers. The validator re-derives cliffs, funnel and retention from ClickHouse and overrules it. On a real run the analyst reported a cliff at second 2 that does not exist and missed all three that do. |
+| The model is not trusted with facts | It is not in the numeric path at all. Step 1 reads cliffs, funnel and retention from ClickHouse directly. This is the result of a measurement, not a preference: as an `LlmAgent` that step reported a cliff at second 2 that does not exist and missed all three that do, so it was replaced. The comparison is kept in `validator.validate()` and its tests as the evidence. |
+| The model's language output is checked too | `summary_is_grounded()` rejects a narrator summary citing any second that was not detected as a cliff, falling back to the deterministic template. This exists because the narrator's first version, given an instruction that named the state keys instead of interpolating them, received no data and invented a CGI explosion and a viewer count. |
 | The model is not trusted with control flow | Step order is fixed in code by `SequentialAgent`. No model chooses what runs next. |
 | The model is not a dependency | A failing analyst is contained, not fatal. |
-| Grounded perception | Gemini is asked only about frames that a statistically detected cliff points at, so it never speculates about a moment the data did not flag. |
+| Grounded perception | Gemini is asked only about frames that a statistically detected cliff points at, so it never speculates about a moment the data did not flag. The narrator receives the verified numbers and the diagnoses interpolated into its prompt, not key names to imagine. |
 | Prompt correctness | The diagnostician prompt is clip-relative. Addressing the model with an absolute trailer timestamp for a clip whose timeline starts at 00:00 made it refuse, and that refusal was written into a report as a diagnosis. |
 | Output handling | Model output is treated as untrusted text: schema-validated, severity and confidence clamped to range, and HTML-escaped at render. |
 | Model selection | `gemini-3.5-flash`, a Flash-class model for a perception task, verified servable by a real call rather than a catalog listing. |

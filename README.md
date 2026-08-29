@@ -141,10 +141,10 @@ Pub/Sub  cutpoint-analyze
       |  (push, OIDC, ack-deadline 600s)
       v
 Cloud Run  cutpoint-api  ->  ADK SequentialAgent (5 steps)
-      |                        [1] analyst        LlmAgent + mcp-clickhouse (read-only)
-      |                        [2] validator      re-derives every number from ClickHouse
-      |                        [3] extractor      -> Cloud Run cutpoint-segment-extractor
-      |                        [4] diagnostician  -> Vertex AI gemini-3.5-flash
+      |                        [1] analyst        reads ClickHouse directly, readonly=1
+      |                        [2] extractor      -> Cloud Run cutpoint-segment-extractor
+      |                        [3] diagnostician  -> Vertex AI gemini-3.5-flash (vision)
+      |                        [4] narrator       -> Vertex AI + mcp-clickhouse (language)
       |                        [5] reporter       -> Director's Notes
       v
 Firestore (reports, jobs, watch fingerprints)  +  GCS (clips, rendered HTML)
@@ -158,22 +158,15 @@ External dependencies:
   - Vertex AI Gemini 3.5 Flash: multimodal video understanding
   - ffmpeg: frame-accurate clip extraction
 
-### Why there is a validator
+### Why no model touches a number
 
-The analyst is an `LlmAgent`. It *transcribes* `mcp-clickhouse` tool output into a Pydantic
-schema, and `output_schema` validates the shape of that transcription, not its numbers. A
-transposed digit, a missed cliff or an invented one passes validation silently.
+The analyst used to be an `LlmAgent` that queried ClickHouse through
+`mcp-clickhouse` and transcribed the results into a Pydantic schema. `output_schema`
+validates the shape of a transcription, not its numbers, so a transposed digit, a
+missed cliff or an invented one passed silently.
 
-Step 2 re-runs the same fixed SQL over a `readonly=1` connection and treats ClickHouse as
-authoritative for cliffs, `milestone_funnel` and `overall_retention_end`. The divergence is
-recorded in the report as a `ValidationReport`.
-
-This buys provenance and reproducibility, not correctness: if the SQL is wrong the numbers are
-wrong, reproducibly. Detector accuracy is a separate claim, evidenced by `tests/test_detector.py`
-against injected ground truth with `demo_control` as a non-circular false-positive control.
-
-This is not hypothetical. On a real run the analyst reported one cliff, at second 2, which does
-not exist in the database, and missed all three real ones:
+We measured it. On a real run it reported one cliff, at second 2, which does not
+exist in the database, and missed all three that do:
 
 ```
 llm cliffs claimed : 1
@@ -182,9 +175,31 @@ second 48 / 23 / 69 : missed by the analyst, restored from ClickHouse
 second 2            : reported by the analyst, absent from ClickHouse
 ```
 
-Because of step 2 the report was still correct. The analyst is a convenience, not a correctness
-dependency: if it hallucinates, times out or returns truncated JSON, every number still comes
-from the database.
+So the numbers were moved off it entirely. Step 1 now reads ClickHouse directly
+over a `readonly=1` connection, and no model sits between the database and the
+report. The comparison above is preserved in `validator.validate()` and its
+tests, because it is the reason the pipeline looks like this.
+
+That buys provenance and reproducibility, not correctness: a wrong query is
+re-derived wrongly every time. Detector accuracy is a separate claim, evidenced
+by `tests/test_detector.py` against injected ground truth with `demo_control` as
+a non-circular false-positive control.
+
+### What the model is for
+
+Steps 3 and 4, and neither can put a number in the report.
+
+Step 3 looks at frames and says what is on screen. Step 4 turns verified findings
+into a paragraph an editor can act on, which is a job a format string does badly
+and a model does well. `mcp-clickhouse` is available to it for supporting context.
+
+Step 4 also demonstrates the failure mode in miniature. Its first version named
+the session-state keys in the instruction instead of interpolating them, so ADK
+passed no data and the model confidently described a "poorly rendered CGI
+explosion" and "3,525 viewers", neither of which appears anywhere in the
+diagnoses. The prompt now interpolates the real data, and
+`summary_is_grounded()` rejects any summary citing a second that was not
+detected as a cliff, falling back to the deterministic template.
 
 ### Security model
 
@@ -225,29 +240,31 @@ caller identity are never served anonymously.
 │  SequentialAgent: 5 steps, order fixed in code, never chosen by a model   │
 │                                                                          │
 │  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐                  │
-│  │ [1] analyst  │ ->│ [2] validator│ ->│ [3] extractor│                  │
-│  │ LlmAgent     │   │ BaseAgent    │   │ BaseAgent    │                  │
-│  │ mcp-CH       │   │ readonly SQL │   │ HTTP+ffmpeg  │                  │
-│  │ (may fail;   │   │ OVERRULES [1]│   │              │                  │
-│  │  not fatal)  │   │              │   │              │                  │
+│  │ [1] analyst  │ ->│ [2] extractor│ ->│[3] diagnostic│                  │
+│  │ BaseAgent    │   │ BaseAgent    │   │ Gemini 3.5   │                  │
+│  │ readonly SQL │   │ HTTP+ffmpeg  │   │ SEES frames  │                  │
+│  │ NO MODEL     │   │              │   │              │                  │
 │  └──────────────┘   └──────────────┘   └──────┬───────┘                  │
 │                                                │                         │
 │                     ┌──────────────┐   ┌───────v──────┐                  │
-│  Director's Notes <-│ [5] reporter │ <-│[4] diagnostic│                  │
+│  Director's Notes <-│ [5] reporter │ <-│ [4] narrator │                  │
 │  JSON / MD / HTML   │ BaseAgent    │   │ Gemini 3.5   │                  │
-│                     └──────────────┘   └──────────────┘                  │
+│                     │              │   │ WRITES prose │                  │
+│                     └──────────────┘   │ + mcp-CH     │                  │
+│                                        └──────────────┘                  │
 └──────────────────────────────────────────────────────────────────────────┘
          │                    │                       │
          v                    v                       v
   ┌───────────────┐  ┌──────────────────┐   ┌──────────────────┐
   │ ClickHouse    │  │ Cloud Run        │   │ Vertex AI        │
-  │ mcp-clickhouse│  │ segment-extractor│   │ gemini-3.5-flash │
-  │ + readonly=1  │  │ (private)        │   │ (multimodal)     │
+  │ readonly=1    │  │ segment-extractor│   │ gemini-3.5-flash │
+  │ + mcp (step 4)│  │ (private)        │   │ (multimodal)     │
   └───────────────┘  └──────────────────┘   └──────────────────┘
 ```
 
-Only steps 1 and 4 involve a model. Step 2 exists so that step 1 being a model does not put the
-numbers at risk, and step 1 is wrapped so that its failure cannot end the run.
+Only steps 3 and 4 involve a model, and neither can put a number in the report. Step 1 reads the
+database directly; step 4's prose is rejected if it cites a second that was not detected as a
+cliff.
 
 ### Data Flow (single /analyze request)
 
@@ -414,7 +431,9 @@ and SQL injection. CORS open per hackathon spec (would need auth in production).
 | Path | Purpose |
 |------|---------|
 | `agent/` | Google ADK agent: `cutpoint_agent/agent.py` is the `root_agent` entrypoint |
-| `agent/cutpoint_agent/steps/validator.py` | Re-derives every number from ClickHouse and overrules the analyst |
+| `agent/cutpoint_agent/steps/analyst.py` | Reads every number from ClickHouse directly. No model involved |
+| `agent/cutpoint_agent/steps/narrator.py` | The model's language job, with a grounding check on its output |
+| `agent/cutpoint_agent/steps/validator.py` | The measurement that moved the numbers off the model, kept as evidence |
 | `agent/cutpoint_agent/store.py` | Firestore-backed reports, jobs and watch fingerprints, with a local fallback |
 | `api/` | REST facade (FastAPI). `auth.py` guards the paid endpoints |
 | `ingest/` | Synthetic data generator + ClickHouse loader (the only write path) |

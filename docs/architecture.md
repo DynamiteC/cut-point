@@ -51,12 +51,12 @@ flowchart TB
 
     subgraph Agent["ADK SequentialAgent: 5 steps, order fixed in code"]
         direction TB
-        Analyst["[1] analyst (LlmAgent)\nmcp-clickhouse, read-only\nwrapped: failure is not fatal"]
-        Validator["[2] validator\nre-derives EVERY number\nreadonly=1, overrules step 1"]
-        Extractor["[3] extractor\nclip +/-5s around each cliff"]
-        Diagnostician["[4] diagnostician\ngemini-3.5-flash on the clip"]
+        Analyst["[1] analyst\nreads ClickHouse directly\nreadonly=1, no model"]
+        Extractor["[2] extractor\nclip +/-5s around each cliff"]
+        Diagnostician["[3] diagnostician\ngemini-3.5-flash sees the clip"]
+        Narrator["[4] narrator\ngemini-3.5-flash writes the summary\nrejected if it cites a non-cliff"]
         Reporter["[5] reporter\nDirector's Notes JSON, MD, HTML"]
-        Analyst --> Validator --> Extractor --> Diagnostician --> Reporter
+        Analyst --> Extractor --> Diagnostician --> Narrator --> Reporter
     end
 
     subgraph Data["Data plane"]
@@ -80,8 +80,8 @@ flowchart TB
     Analyze --> Agent
     Watcher -- "fixed SQL, readonly" --> CH
     Watcher --> FS
-    Analyst -- "McpToolset, read-only" --> CH
-    Validator -- "readonly=1 connection" --> CH
+    Analyst -- "readonly=1 connection" --> CH
+    Narrator -- "McpToolset, read-only" --> CH
     Extractor -- "HTTP + identity token" --> Seg
     Seg -- "gs:// clip URI" --> GCS
     Diagnostician -- "google-genai, vertexai=True" --> Gemini
@@ -91,30 +91,35 @@ flowchart TB
 
 ## The determinism boundary
 
-Only steps 1 and 4 involve a model, and neither can put a number in the report.
+The model appears in steps 3 and 4, and in neither case can it put a number in
+the report.
 
-Step 1 is an `LlmAgent` that transcribes `mcp-clickhouse` output into a Pydantic schema.
-`output_schema` validates the shape of that transcription, not its numbers, so a transposed
-digit or an invented cliff passes silently. Step 2 therefore re-runs the same fixed SQL over a
-`readonly=1` connection and treats ClickHouse as authoritative for cliffs, `milestone_funnel`
-and `overall_retention_end`, recording any divergence in the report as a `ValidationReport`.
+Step 1 used to be an `LlmAgent` transcribing `mcp-clickhouse` output into a
+Pydantic schema. `output_schema` validates the shape of a transcription, not its
+numbers. We measured it: on a real run it reported one cliff at second 2, which
+does not exist in the database, and missed all three that do, at 48, 23 and 69.
+A validator step existed solely to overrule it, which meant every field it
+produced was discarded.
 
-On a real run the analyst reported one cliff at second 2, which does not exist in the database,
-and missed all three real ones at 48, 23 and 69. The validator corrected all of it.
+So the numbers were moved off the model entirely. Step 1 reads ClickHouse
+directly. The comparison is preserved in `validator.validate()` and its tests as
+the evidence for the decision.
 
-What this guarantees is provenance and reproducibility, not correctness. A wrong query would be
-re-derived wrongly every time. Detector accuracy is evidenced separately, in
-`tests/test_detector.py`, against injected ground truth with a false-positive control. Step 1 is
-additionally wrapped so that its failure writes an empty result and continues rather than ending
-the run, which makes the model a convenience rather than a correctness dependency.
+What this guarantees is provenance and reproducibility, not correctness. A wrong
+query would be re-derived wrongly every time. Detector accuracy is evidenced
+separately, in `tests/test_detector.py`, against injected ground truth with a
+false-positive control.
 
-Step 4 is used only for perception: describing what is on screen and proposing why viewers left.
-It never decides what runs next.
+Step 4 is the counter-example that proves the rule. Given an instruction that
+named the state keys instead of interpolating them, it received no data and
+invented a CGI explosion and a viewer count. It is now given the real data, and
+`summary_is_grounded()` rejects a summary citing any second that was not
+detected as a cliff, falling back to the deterministic template.
 
 ## Read-only access
 
 Agent-side ClickHouse access goes through `mcp-clickhouse`, which is read-only by construction.
-The validator and the watcher run fixed `.sql` files rather than model-authored queries, and use
+The analyst and the watcher run fixed `.sql` files rather than model-authored queries, and use
 a connection pinned to `readonly=1` at the session level, so the server itself refuses a write
 (verified: ClickHouse error code 164). `clickhouse-connect` in read-write mode is confined to
 `ingest/`.

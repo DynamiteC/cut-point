@@ -48,11 +48,14 @@ compares it to the last fingerprint in Firestore. If nothing changed it does not
 what stops it becoming an expensive cron job. If a genuinely new cliff appeared it publishes to a
 second topic, and the pipeline runs end to end with no human involved:
 
-1. **Analyst** queries ClickHouse through `mcp-clickhouse` over a read-only MCP boundary.
-2. **Validator** re-derives every number directly from the database and overrules the analyst.
-3. **Extractor** clips five seconds either side of each verified cliff with ffmpeg on Cloud Run.
-4. **Diagnostician** sends each clip to Gemini 3.5 Flash and asks what is on screen and why it
+1. **Analyst** reads cliffs, funnel and retention straight from ClickHouse over a `readonly=1`
+   connection. No model is involved in producing a number.
+2. **Extractor** clips five seconds either side of each cliff with ffmpeg on Cloud Run.
+3. **Diagnostician** sends each clip to Gemini 3.5 Flash and asks what is on screen and why it
    cost viewers.
+4. **Narrator** has Gemini turn the verified findings into a paragraph an editor can act on,
+   with `mcp-clickhouse` available for supporting context. Its output is rejected if it cites a
+   second that was not detected as a cliff.
 5. **Reporter** writes Director's Notes (JSON, Markdown, self-contained HTML) to Firestore and
    Cloud Storage, with a per-cliff recut action and target range.
 
@@ -75,12 +78,10 @@ second topic, and the pipeline runs end to end with no human involved:
 
 ### Challenges
 
-**The model was wrong about the data, and we could prove it.** The analyst step is an `LlmAgent`
-that transcribes tool output into a schema. `output_schema` validates the shape of that
+**The model was wrong about the data, and we could prove it.** The analyst step began as an
+`LlmAgent` transcribing tool output into a schema. `output_schema` validates the shape of a
 transcription, not its numbers. On a real run it reported a single cliff at second 2, which does
-not exist in the database, and missed all three real ones at 48, 23 and 69. We added a validator
-step that re-runs the same SQL over a `readonly=1` connection and treats ClickHouse as
-authoritative, recording the divergence in the report:
+not exist in the database, and missed all three real ones at 48, 23 and 69:
 
 ```
 llm cliffs claimed : 1
@@ -88,6 +89,13 @@ db-verified cliffs : 3
 second 48 / 23 / 69 : missed by the analyst, restored from ClickHouse
 second 2            : reported by the analyst, absent from ClickHouse
 ```
+
+**The model invented findings the moment we stopped feeding it data.** The narrator's first
+version named the session-state keys in its instruction instead of interpolating them, so ADK
+passed it nothing and it confidently described a "poorly rendered CGI explosion" and "3,525
+viewers" -- neither in the diagnoses, and viewer counts appear nowhere in the system. The prompt
+now interpolates the real data and a grounding check rejects any summary citing a second that
+was not detected as a cliff.
 
 **Gemini refused to answer, and it was our fault.** We sent a clip covering trailer seconds 43 to
 53 while telling the model "describe second 48". The clip's own timeline starts at 00:00, so the
