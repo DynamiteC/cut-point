@@ -61,19 +61,28 @@ Let the watcher log appear. Point at the fingerprint comparison.
 
 Cut to the pipeline running (`make demo` locally, so the audience sees every step).
 
-Then the payoff. Open `data/reports/demo_001.json` and show the validation block:
+Then the payoff. Two beats, in this order.
 
-```
-llm cliffs claimed : 1
-db-verified cliffs : 3
-second 48 / 23 / 69 : missed by the analyst, restored from ClickHouse
-second 2            : reported by the analyst, absent from ClickHouse
-```
+**Beat one: no model produced a number.** Open `agent/cutpoint_agent/steps/analyst.py`.
 
-> "This is a real run, not a contrived one. The language model reported a cliff at second 2 that
-> does not exist in the database, and missed all three that do. Step 2 of the pipeline re-derives
-> every number from ClickHouse over a read-only connection and overrules it. That is why I can
-> tell you the numbers in this report are correct: no model put them there."
+> "Step one has no model in it. It reads the cliffs, the funnel and the retention curve straight
+> from ClickHouse over a read-only connection. That is not a stylistic preference, it is the
+> result of a measurement."
+
+Open `tests/test_validator.py` and the committed evidence.
+
+> "This step used to be a language model transcribing query results. On a real run it reported
+> one cliff, at second two, which does not exist in the database, and missed all three that do.
+> So we took the numbers off it. That test is kept purely as the record of why."
+
+**Beat two: the model still has a job, and it is checked too.** Show the executive summary in
+the rendered report.
+
+> "Gemini writes this paragraph, from findings it did not compute. The first version of that step
+> named the data in its prompt instead of including it, so it received nothing and invented a
+> poorly rendered CGI explosion and three thousand five hundred viewers. Neither exists anywhere
+> in this system. Now the prompt carries the real data, and any summary citing a second that was
+> not detected as a cliff is thrown away and replaced by a template."
 
 Open the rendered HTML. Scroll the retention curve, one cliff card, Gemini's description and the
 recut recommendation.
@@ -129,7 +138,7 @@ Leaving it enabled wakes the watcher 96 times a day on your billing account.
 - [ ] Live terminal output, not slides
 - [ ] A `.run.app` URL visible on screen
 - [ ] Cloud Run dashboard, Pub/Sub, and Vertex AI logs all shown
-- [ ] The validation block shown (this is the differentiator)
+- [ ] Both payoff beats shown: no model in the numeric path, and the grounding check
 - [ ] The 401 shown, and explained as deliberate
 - [ ] Public on YouTube, English audio or subtitles
 - [ ] Scheduler paused again afterwards
