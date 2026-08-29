@@ -2,59 +2,118 @@
 
 ## Overview
 
-CutPoint is a deterministic 4-step agent pipeline that fuses per-second trailer audience-
-retention analytics (ClickHouse) with Gemini's frame-level video understanding (Vertex AI) to
-produce timestamped "Director's Notes" -- exactly where a trailer loses viewers, why, and what
-to do about it.
+CutPoint is an event-driven agent system on Google Cloud. It fuses per-second trailer
+audience-retention analytics (ClickHouse) with Gemini 3.5 Flash frame-level video understanding
+(Vertex AI) to produce timestamped "Director's Notes": exactly where a trailer loses viewers,
+why, and what to do about it.
 
-The loop: ClickHouse answers WHERE (second 47, cohort 18-24, 22% retention cliff) -> Gemini
-multimodal answers WHY (tone shift / spoiler / pacing collapse in those exact frames) -> the
-agent renders Director's Notes with recut recommendations.
+The loop: ClickHouse answers WHERE (second 48, cohorts 18-34, 13.5% retention cliff), Gemini
+multimodal answers WHY (tone shift / spoiler / pacing collapse in those exact frames), the agent
+renders Director's Notes with recut recommendations.
+
+Nothing has to ask for it. Cloud Scheduler ticks a Pub/Sub topic every 15 minutes, a watcher
+re-runs cliff detection against live data, and only a genuinely new cliff triggers the pipeline.
+
+## Deployed footprint
+
+| Resource | Name | Access |
+|---|---|---|
+| Cloud Run | `cutpoint-api` | public reads, OIDC on the paid endpoints |
+| Cloud Run | `cutpoint-watcher` | private, Pub/Sub push only |
+| Cloud Run | `cutpoint-segment-extractor` | private, invoked by the runtime service account |
+| Pub/Sub | `cutpoint-retention-scan`, `cutpoint-analyze` | OIDC push subscriptions |
+| Firestore | native mode | reports, jobs, watch fingerprints |
+| Cloud Scheduler | `cutpoint-retention-scan-tick` | `*/15 * * * *` |
+| Cloud Storage | `<project>-cutpoint-media` | clips and rendered media, no public binding |
+| Vertex AI | `gemini-3.5-flash` | location `global` |
+
+Qualifying Google Cloud infrastructure services: **Cloud Run, Pub/Sub, Firestore**.
 
 ## Diagram
 
 ```mermaid
 flowchart TB
-    subgraph Frontend["Replit Frontend (built separately, see docs/frontend-spec.md)"]
-        UI[Trailer picker / progress / report view]
+    subgraph Trigger["Autonomous trigger"]
+        Sched["Cloud Scheduler\n*/15 * * * *"]
+        ScanTopic(["Pub/Sub\ncutpoint-retention-scan"])
+        Watcher["Cloud Run: cutpoint-watcher\nre-runs changepoints.sql\nfingerprints the cliff set"]
+        AnalyzeTopic(["Pub/Sub\ncutpoint-analyze\nack-deadline 600s"])
+        Sched --> ScanTopic -- "push + OIDC" --> Watcher
+        Watcher -- "only if the fingerprint changed" --> AnalyzeTopic
     end
 
-    subgraph API["api/ REST facade (FastAPI, thin)"]
+    subgraph API["Cloud Run: cutpoint-api (FastAPI)"]
+        Push[POST /pubsub/analyze]
+        Jobs[POST /jobs, GET /jobs/id]
         Analyze[POST /analyze]
-        Report[GET /report/id]
-        ReportHtml[GET /report/id/html]
-        Trailers[GET /trailers]
+        Report[GET /report/id, /html, /trailers]
     end
 
-    subgraph Agent["CutPoint Agent (Google ADK, Python)"]
+    subgraph Agent["ADK SequentialAgent: 5 steps, order fixed in code"]
         direction TB
-        Analyst["[1] analyst (LlmAgent)\nretention curve + changepoints"]
-        Extractor["[2] extractor (deterministic)\nclip +/-5s around each cliff"]
-        Diagnostician["[3] diagnostician (multimodal)\nwhat happens on screen and why"]
-        Reporter["[4] reporter\nDirector's Notes JSON -> MD -> HTML"]
-        Analyst --> Extractor --> Diagnostician --> Reporter
+        Analyst["[1] analyst (LlmAgent)\nmcp-clickhouse, read-only\nwrapped: failure is not fatal"]
+        Validator["[2] validator\nre-derives EVERY number\nreadonly=1, overrules step 1"]
+        Extractor["[3] extractor\nclip +/-5s around each cliff"]
+        Diagnostician["[4] diagnostician\ngemini-3.5-flash on the clip"]
+        Reporter["[5] reporter\nDirector's Notes JSON, MD, HTML"]
+        Analyst --> Validator --> Extractor --> Diagnostician --> Reporter
     end
 
     subgraph Data["Data plane"]
-        CH[(ClickHouse Cloud\nraw_playback_events, mv_second_viewers)]
-        Seg[Segment extractor service\nFastAPI + ffmpeg, local or Cloud Run]
-        Gemini[[Gemini multimodal\nvia Vertex AI]]
+        CH[(ClickHouse\nraw_playback_events\nmv_second_viewers)]
+        Seg["Cloud Run: segment-extractor\nFastAPI + ffmpeg, private"]
+        Gemini[[Vertex AI\ngemini-3.5-flash]]
+        FS[(Firestore\nreports, jobs, fingerprints)]
+        GCS[(Cloud Storage\nclips, rendered HTML)]
     end
 
-    subgraph Ingest["ingest/ (write path, clickhouse-connect ONLY here)"]
-        Gen[generate.py\nsynthetic events + ground truth]
-        Load[load.py\nbatch loader]
+    subgraph Ingest["ingest/ write path, clickhouse-connect ONLY here"]
+        Gen["generate.py\nsynthetic events + ground truth"]
+        Load["load.py\nresumable batch loader"]
         Gen --> Load --> CH
     end
 
-    UI --> Analyze & Report & ReportHtml & Trailers
+    UI["GitHub Pages UI"] --> Report
+    UI --> Jobs
+    AnalyzeTopic -- "push + OIDC" --> Push
+    Push --> Agent
     Analyze --> Agent
-    Analyst -- "McpToolset (mcp-clickhouse, read-only)" --> CH
-    Extractor -- HTTP --> Seg
-    Diagnostician -- "google-genai (vertexai=True)" --> Gemini
-    Reporter --> Report
-    Reporter --> ReportHtml
+    Watcher -- "fixed SQL, readonly" --> CH
+    Watcher --> FS
+    Analyst -- "McpToolset, read-only" --> CH
+    Validator -- "readonly=1 connection" --> CH
+    Extractor -- "HTTP + identity token" --> Seg
+    Seg -- "gs:// clip URI" --> GCS
+    Diagnostician -- "google-genai, vertexai=True" --> Gemini
+    Reporter --> FS
+    Reporter --> GCS
 ```
+
+## The determinism boundary
+
+Only steps 1 and 4 involve a model, and neither can put a number in the report.
+
+Step 1 is an `LlmAgent` that transcribes `mcp-clickhouse` output into a Pydantic schema.
+`output_schema` validates the shape of that transcription, not its numbers, so a transposed
+digit or an invented cliff passes silently. Step 2 therefore re-runs the same fixed SQL over a
+`readonly=1` connection and treats ClickHouse as authoritative for cliffs, `milestone_funnel`
+and `overall_retention_end`, recording any divergence in the report as a `ValidationReport`.
+
+On a real run the analyst reported one cliff at second 2, which does not exist in the database,
+and missed all three real ones at 48, 23 and 69. The validator corrected all of it. Step 1 is
+additionally wrapped so that its failure writes an empty result and continues rather than ending
+the run, which makes the model a convenience rather than a correctness dependency.
+
+Step 4 is used only for perception: describing what is on screen and proposing why viewers left.
+It never decides what runs next.
+
+## Read-only access
+
+Agent-side ClickHouse access goes through `mcp-clickhouse`, which is read-only by construction.
+The validator and the watcher run fixed `.sql` files rather than model-authored queries, and use
+a connection pinned to `readonly=1` at the session level, so the server itself refuses a write
+(verified: ClickHouse error code 164). `clickhouse-connect` in read-write mode is confined to
+`ingest/`.
 
 ## Why these technology choices
 

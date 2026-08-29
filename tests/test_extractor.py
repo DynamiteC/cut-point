@@ -161,3 +161,38 @@ def test_strict_probe_still_fails_loud_with_an_ffprobe_message(tmp_path):
         ffprobe_duration(str(corrupt), strict=True)
     assert excinfo.value.status_code == 500
     assert "ffprobe" in excinfo.value.detail
+
+
+def test_source_bucket_is_confined_to_the_configured_one(monkeypatch):
+    """This service runs as a service account with roles/storage.objectAdmin
+    across the project. Accepting an arbitrary bucket turns "extract a clip"
+    into "read any object in the project and hand it back".
+    """
+    monkeypatch.setenv("GCS_BUCKET", "our-media-bucket")
+
+    response = client.post(
+        "/extract",
+        json={"video_path": "gs://some-other-bucket/secrets.json", "start_s": 0, "end_s": 5},
+    )
+
+    assert response.status_code == 403
+    assert "not permitted" in response.json()["detail"]
+
+
+def test_errors_never_echo_ffmpeg_stderr_or_container_paths(monkeypatch, tmp_path):
+    """ffmpeg and ffprobe stderr echo the full input URI. For a signed URL that
+    URI is the credential, so it belongs in the logs and not in a response.
+    """
+    from fastapi import HTTPException
+
+    from services.segment_extractor.main import ffprobe_duration
+
+    corrupt = tmp_path / "corrupt.mp4"
+    corrupt.write_bytes(b"not a video")
+
+    with pytest.raises(HTTPException) as excinfo:
+        ffprobe_duration(str(corrupt), strict=True)
+
+    detail = excinfo.value.detail
+    assert str(tmp_path) not in detail, "container filesystem layout must not leak"
+    assert "see server logs" in detail

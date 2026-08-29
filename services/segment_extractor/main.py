@@ -60,9 +60,12 @@ def ffprobe_duration(path: str, strict: bool = True) -> float | None:
             # 500 preserves the documented contract (README error-handling table,
             # chaos test 3). The change here is that the caller now gets a
             # specific ffprobe message instead of an unhandled CalledProcessError.
+            # stderr echoes the full input URI. For a signed URL that URI IS the
+            # credential, so it is logged for the operator and never returned.
+            print(f"[extractor] ffprobe failed on {path}: {result.stderr[-300:]}")
             raise HTTPException(
                 status_code=500,
-                detail=f"ffprobe could not read a duration from {path}: {result.stderr[-300:]}",
+                detail="ffprobe could not read a duration from the source; see server logs",
             ) from None
         return None
 
@@ -84,13 +87,26 @@ def _download_from_gcs(uri: str) -> Path:
 
     On Cloud Run there is no data/videos/ in the image, so a local path can
     never resolve. GCS is how the deployed service gets its source at all.
+
+    Confined to the configured bucket on purpose. This service runs as a service
+    account holding roles/storage.objectAdmin across the project, so accepting an
+    arbitrary bucket turned "extract a clip" into "read any object in the
+    project and hand it back", which is a credential-exfiltration primitive if
+    any bucket in the project ever holds a key or a dump.
     """
     from google.cloud import storage
 
     bucket_name, key = _split_gs_uri(uri)
+    allowed = _bucket_name()
+    if allowed and bucket_name != allowed:
+        raise HTTPException(
+            status_code=403,
+            detail="source bucket is not permitted for this service",
+        )
     blob = storage.Client().bucket(bucket_name).blob(key)
     if not blob.exists():
-        raise HTTPException(status_code=404, detail=f"source video not found at {uri}")
+        print(f"[extractor] source object missing: {uri}")
+        raise HTTPException(status_code=404, detail="source video not found")
     suffix = Path(key).suffix or ".mp4"
     fd, temp_name = tempfile.mkstemp(suffix=suffix)
     os.close(fd)
@@ -129,10 +145,11 @@ def resolve_local_path(video_path: str) -> Path:
     if not path.is_relative_to(VIDEOS_DIR):
         raise HTTPException(
             status_code=400,
-            detail=f"video_path must resolve inside {VIDEOS_DIR} -- refusing path outside the videos directory",
+            detail="video_path must resolve inside the videos directory -- refusing path outside it",
         )
     if not path.exists():
-        raise HTTPException(status_code=404, detail=f"video not found at {path}")
+        print(f"[extractor] source video missing: {path}")
+        raise HTTPException(status_code=404, detail="source video not found")
     return path
 
 
@@ -208,7 +225,8 @@ def _extract(req: ExtractRequest, source_path: Path) -> ExtractResponse:
         ]
         result = subprocess.run(cmd_reencode, capture_output=True, text=True, check=False)
         if result.returncode != 0:
-            raise HTTPException(status_code=500, detail=f"ffmpeg failed: {result.stderr[-500:]}")
+            print(f"[extractor] ffmpeg failed: {result.stderr[-500:]}")
+            raise HTTPException(status_code=500, detail="ffmpeg failed; see server logs")
 
     actual_duration = ffprobe_duration(str(clip_path))
     return ExtractResponse(clip_path=_upload_clip(clip_path), duration_s=actual_duration)
