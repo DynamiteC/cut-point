@@ -49,12 +49,22 @@ DIAGNOSIS_RESPONSE_SCHEMA = {
 }
 
 
+# A video inference that never returns holds one of only two pipeline slots
+# until Cloud Run's request timeout kills the whole run. Bound it explicitly.
+GEMINI_TIMEOUT_MS = int(os.environ.get("CUTPOINT_GEMINI_TIMEOUT_MS", "120000"))
+
+
 def build_genai_client() -> genai.Client:
     project = os.environ.get("GOOGLE_CLOUD_PROJECT")
     location = os.environ.get("GOOGLE_CLOUD_LOCATION", "global")
     if not project:
         raise MissingCredentialError("GOOGLE_CLOUD_PROJECT")
-    return genai.Client(vertexai=True, project=project, location=location)
+    return genai.Client(
+        vertexai=True,
+        project=project,
+        location=location,
+        http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT_MS),
+    )
 
 
 def diagnose_clip(client: genai.Client, model: str, clip_path: str, second: int,

@@ -98,7 +98,7 @@ BUDGET_COLLECTION = "cutpoint_budget"
 BUDGET_DIR = REPO_ROOT / "data" / "budget"
 
 
-def bump_daily_analyses(day: str) -> int:
+def bump_daily_analyses(day: str, delta: int = 1) -> int:
     """Increment and return today's completed-analysis count.
 
     Every pipeline run costs real money: ClickHouse queries, an ffmpeg
@@ -112,13 +112,13 @@ def bump_daily_analyses(day: str) -> int:
         from google.cloud import firestore
 
         ref = _client().collection(BUDGET_COLLECTION).document(day)
-        ref.set({"analyses": firestore.Increment(1)}, merge=True)
+        ref.set({"analyses": firestore.Increment(delta)}, merge=True)
         snap = ref.get()
         return int((snap.to_dict() or {}).get("analyses", 0))
 
     path = _local_path(BUDGET_DIR, day)
     current = json.loads(path.read_text())["analyses"] if path.exists() else 0
-    current += 1
+    current += delta
     path.write_text(json.dumps({"analyses": current}))
     return current
 

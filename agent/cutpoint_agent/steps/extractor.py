@@ -50,8 +50,20 @@ def run_extraction(
     analysis: AnalysisResult, video_path: str, extractor_url: str, http_client=None
 ) -> ExtractionResult:
     """Pure, testable extraction logic: one HTTP POST per cliff, no LLM involved."""
-    client = http_client or httpx.Client(timeout=30)
-    headers = _auth_headers(extractor_url) if http_client is None else {}
+    if http_client is not None:
+        return _extract_with(analysis, video_path, extractor_url, http_client, headers={})
+    # Own the client, so close it. Previously one was created per call and never
+    # closed, leaking a connection pool per pipeline run on an instance that
+    # Cloud Run keeps alive across many runs.
+    with httpx.Client(timeout=30) as owned:
+        return _extract_with(
+            analysis, video_path, extractor_url, owned, _auth_headers(extractor_url)
+        )
+
+
+def _extract_with(
+    analysis: AnalysisResult, video_path: str, extractor_url: str, client, headers: dict
+) -> ExtractionResult:
     clips: list[ClipRef] = []
     for cliff in analysis.cliffs:
         start_s = max(0, cliff.second - CLIP_WINDOW_S)

@@ -6,6 +6,8 @@ must fail closed and the read-only endpoints must stay public for the static UI.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -111,3 +113,33 @@ def test_daily_budget_stops_runaway_spend(monkeypatch, tmp_path) -> None:
 
     assert codes[:2] == [200, 200], "runs within budget must succeed"
     assert codes[2:] == [429, 429], "runs past budget must be refused, not billed"
+
+
+def test_a_failed_run_does_not_consume_daily_budget(monkeypatch, tmp_path) -> None:
+    """A run of transient failures must not lock out legitimate work for the
+    rest of the day. Reserve before running, refund what was never spent.
+    """
+    from agent.cutpoint_agent import store
+    from api import main
+
+    monkeypatch.setenv("CUTPOINT_REQUIRE_AUTH", "false")
+    monkeypatch.setenv("CUTPOINT_STORE", "local")
+    monkeypatch.setattr(store, "BUDGET_DIR", tmp_path / "budget")
+    monkeypatch.setattr(main, "_MAX_PER_DAY", 2)
+
+    def boom(_trailer_id):
+        raise RuntimeError("Vertex AI unavailable")
+
+    monkeypatch.setattr(main.app.state, "pipeline_runner", boom, raising=False)
+    for _ in range(3):
+        try:
+            client.post("/analyze", json={"trailer_id": "demo_001"})
+        except RuntimeError:
+            pass
+
+    day = datetime.now(UTC).strftime("%Y-%m-%d")
+    monkeypatch.setattr(main.app.state, "pipeline_runner", lambda t: {"report_path": "x"})
+    assert client.post("/analyze", json={"trailer_id": "demo_001"}).status_code == 200, (
+        "three failed runs must not have exhausted a budget of two"
+    )
+    assert store.bump_daily_analyses(day, delta=0) == 1

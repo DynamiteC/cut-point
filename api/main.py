@@ -55,6 +55,31 @@ _pipeline_slots = threading.Semaphore(_MAX_CONCURRENT)
 # deliberately low and raising it is an explicit deploy-time decision.
 _MAX_PER_DAY = int(os.environ.get("CUTPOINT_MAX_ANALYSES_PER_DAY", "25"))
 
+def _validate_cloud_config() -> None:
+    """Fail at boot, not inside a request.
+
+    Config is read inline throughout the codebase, so a missing value used to
+    surface as a 500 from deep in the pipeline, after the caller had already
+    been charged for whatever ran first. Only enforced in cloud mode, so local
+    runs and tests are unaffected.
+    """
+    if not store.using_firestore():
+        return
+    required = ("GOOGLE_CLOUD_PROJECT", "GEMINI_MODEL", "CLICKHOUSE_HOST")
+    missing = [k for k in required if not os.environ.get(k)]
+    if missing:
+        raise RuntimeError(
+            f"refusing to start: missing required configuration {missing}. "
+            "Set these on the Cloud Run service (see deploy/deploy_all.sh)."
+        )
+    if os.environ.get("CUTPOINT_REQUIRE_AUTH", "true").lower() == "false":
+        # Loud, not fatal: someone may be debugging a deployed revision.
+        print("[api] WARNING: CUTPOINT_REQUIRE_AUTH=false in a cloud deployment; "
+              "the paid endpoints are unauthenticated.")
+
+
+_validate_cloud_config()
+
 app = FastAPI(title="CutPoint API")
 
 # The state-changing routes authenticate with a bearer token, not a cookie, so a
@@ -104,14 +129,23 @@ def _run_pipeline_guarded(trailer_id: str) -> dict:
             detail=f"at capacity ({_MAX_CONCURRENT} concurrent analyses); retry shortly",
         )
     try:
+        # Reserve before running, so concurrent callers cannot both pass the
+        # check, but refund a reservation the pipeline never actually spent.
+        # Otherwise a refused or failed run consumed budget and a run of
+        # transient failures could lock out legitimate work for the day.
         day = datetime.now(UTC).strftime("%Y-%m-%d")
-        used = store.bump_daily_analyses(day)
-        if used > _MAX_PER_DAY:
+        reserved = store.bump_daily_analyses(day)
+        if reserved > _MAX_PER_DAY:
+            store.bump_daily_analyses(day, delta=-1)
             raise HTTPException(
                 status_code=429,
                 detail=f"daily analysis budget of {_MAX_PER_DAY} reached; resets at 00:00 UTC",
             )
-        return get_pipeline_runner()(trailer_id)
+        try:
+            return get_pipeline_runner()(trailer_id)
+        except Exception:
+            store.bump_daily_analyses(day, delta=-1)
+            raise
     finally:
         _pipeline_slots.release()
 
