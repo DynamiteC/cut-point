@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CutPoint: Director's Notes</title>
+<meta name="description" content="Live Director's Notes from the deployed CutPoint API: where a trailer loses viewers, and what was on screen when they went.">
+<style>
+  :root {
+    --surface-base: #f6f6f3;
+    --surface-1: #edede8;
+    --surface-white: #ffffff;
+    --border-default: #e1e7ef;
+    --border-subtle: #cfcfc9;
+    --text-dark: #020817;
+    --text-primary: #222220;
+    --text-secondary: #3d3d38;
+    --text-tertiary: #6b6b66;
+    --cta-blue: #1863dc;
+    --cta-blue-subtle: rgba(24, 99, 220, 0.1);
+    --neon-yellow: #fbff7a;
+    --button-grey-surface: rgba(64, 61, 57, 0.08);
+    --button-grey-surface-hover: rgba(64, 61, 57, 0.14);
+    --signal-red: #c1382b;
+    --signal-red-subtle: rgba(193, 56, 43, 0.08);
+    --signal-green: #1f7a4d;
+
+    --font-display: Georgia, "Iowan Old Style", "Times New Roman", serif;
+    --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    --code-fg: #e8eaed;
+    --code-comment: #8a94a6;
+
+    --radius-sharp: 2px;
+    --radius-small: 4px;
+    --radius-medium: 6px;
+    --radius-pill: 50px;
+    --shadow-card: 0px 4px 8px 0px rgba(0, 0, 0, 0.05);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { overflow-x: hidden; }
+
+  body {
+    background: var(--surface-base);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+  /* ---------- header ---------- */
+  header {
+    border-bottom: 1px solid var(--border-subtle);
+    background: var(--surface-base);
+    position: sticky; top: 0; z-index: 20;
+  }
+  .bar { display: flex; align-items: center; gap: 16px; padding: 18px 0; flex-wrap: wrap; }
+  .logo { font-family: var(--font-display); font-size: 24px; letter-spacing: -0.4px; color: var(--text-dark); }
+  .logo em { font-style: normal; color: var(--cta-blue); }
+  .tag {
+    font-family: var(--font-mono); font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--text-tertiary);
+    border: 1px solid var(--border-subtle); border-radius: var(--radius-pill); padding: 3px 10px;
+  }
+  .spacer { flex: 1 1 auto; }
+  .status { display: flex; align-items: center; gap: 7px; font-family: var(--font-mono); font-size: 12px; color: var(--text-tertiary); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border-subtle); }
+  .dot.ok { background: var(--signal-green); }
+  .dot.bad { background: var(--signal-red); }
+  a.src { color: var(--text-tertiary); font-size: 13px; text-decoration: none; border-bottom: 1px solid var(--border-subtle); }
+  a.src:hover { color: var(--cta-blue); border-color: var(--cta-blue); }
+
+  /* ---------- hero ---------- */
+  .hero { padding: 44px 0 28px; }
+  h1 { font-family: var(--font-display); font-size: clamp(30px, 4.2vw, 46px); line-height: 1.1; letter-spacing: -0.9px; color: var(--text-dark); max-width: 18ch; }
+  .lede { margin-top: 14px; font-size: 17px; color: var(--text-secondary); max-width: 62ch; }
+
+  /* ---------- trailer picker ---------- */
+  .picker { display: flex; gap: 8px; flex-wrap: wrap; margin: 26px 0 8px; }
+  .chip {
+    font-family: var(--font-mono); font-size: 13px;
+    background: var(--surface-white); border: 1px solid var(--border-default);
+    border-radius: var(--radius-small); padding: 8px 14px; cursor: pointer;
+    color: var(--text-secondary); transition: background .12s ease, border-color .12s ease, color .12s ease;
+  }
+  .chip:hover { background: var(--button-grey-surface); border-color: var(--border-subtle); }
+  .chip[aria-selected="true"] { background: var(--text-dark); border-color: var(--text-dark); color: #fff; }
+  .chip:focus-visible { outline: 2px solid var(--cta-blue); outline-offset: 2px; }
+  .chip .no { color: var(--text-tertiary); font-size: 11px; margin-left: 6px; }
+  .chip[aria-selected="true"] .no { color: rgba(255,255,255,.6); }
+
+  /* ---------- layout ---------- */
+  main { padding-bottom: 80px; }
+  .panel {
+    background: var(--surface-white); border: 1px solid var(--border-default);
+    border-radius: var(--radius-medium); box-shadow: var(--shadow-card);
+    /* Grid and flex items default to min-width:auto and refuse to shrink below
+       their content, so the wide <pre> below pushed the whole page wider than
+       the viewport. The code block scrolls itself; the page must not. */
+    min-width: 0;
+  }
+  .stack { display: grid; gap: 20px; margin-top: 20px; min-width: 0; }
+
+  /* ---------- summary ---------- */
+  .summary { padding: 28px 30px; border-left: 3px solid var(--neon-yellow); }
+  .kicker { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--text-tertiary); }
+  .summary p { font-family: var(--font-display); font-size: 20px; line-height: 1.5; color: var(--text-dark); margin-top: 10px; }
+
+  /* ---------- provenance ---------- */
+  .prov { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--border-default); overflow: hidden; }
+  .prov > div { background: var(--surface-white); padding: 18px 20px; }
+  .prov .n { font-family: var(--font-mono); font-size: 26px; color: var(--text-dark); line-height: 1.1; }
+  .prov .n.zero { color: var(--signal-green); }
+  .prov .l { font-size: 12.5px; color: var(--text-tertiary); margin-top: 5px; }
+  .prov-note { padding: 14px 20px; background: var(--surface-1); font-size: 13px; color: var(--text-secondary); border-top: 1px solid var(--border-default); }
+
+  /* ---------- curve ---------- */
+  .curve { padding: 24px 28px 18px; }
+  .curve h2, .cliffs h2 { font-family: var(--font-display); font-size: 20px; color: var(--text-dark); font-weight: 600; }
+  .curve .sub { font-size: 13px; color: var(--text-tertiary); margin-top: 3px; }
+  svg { display: block; width: 100%; height: auto; margin-top: 16px; overflow: visible; }
+  .axis { font-family: var(--font-mono); font-size: 10px; fill: var(--text-tertiary); }
+
+  /* ---------- cliff cards ---------- */
+  .cliffs { padding: 24px 28px 28px; }
+  .cliff { border-top: 1px solid var(--border-default); padding: 22px 0; display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 26px; }
+  .cliff:first-of-type { border-top: 0; }
+  .at { font-family: var(--font-mono); font-size: 22px; color: var(--text-dark); }
+  .drop { font-family: var(--font-mono); font-size: 13px; color: var(--signal-red); background: var(--signal-red-subtle); border-radius: var(--radius-sharp); padding: 2px 7px; display: inline-block; margin-top: 6px; }
+  .cohorts { margin-top: 9px; display: flex; flex-wrap: wrap; gap: 4px; }
+  .cohorts span { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); background: var(--button-grey-surface); border-radius: var(--radius-sharp); padding: 2px 6px; }
+  .sev { margin-top: 10px; font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary); }
+  .sev i { font-style: normal; letter-spacing: 2px; color: var(--signal-red); }
+  .field { margin-bottom: 14px; }
+  .field .k { font-family: var(--font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--text-tertiary); }
+  .field .v { margin-top: 3px; color: var(--text-secondary); }
+  .rec { background: var(--cta-blue-subtle); border-radius: var(--radius-small); padding: 13px 15px; }
+  .rec .act { font-family: var(--font-mono); font-size: 12px; color: var(--cta-blue); text-transform: uppercase; letter-spacing: .05em; }
+  .rec .why { margin-top: 5px; font-size: 14.5px; color: var(--text-secondary); }
+
+  /* ---------- run panel ---------- */
+  .run { padding: 24px 28px; }
+  .run h2 { font-family: var(--font-display); font-size: 19px; color: var(--text-dark); font-weight: 600; }
+  .run p { font-size: 14.5px; color: var(--text-secondary); margin-top: 9px; max-width: 74ch; }
+  pre {
+    font-family: var(--font-mono); font-size: 12.5px; background: var(--text-dark); color: var(--code-fg);
+    padding: 14px 16px; border-radius: var(--radius-small); overflow-x: auto; margin-top: 14px; line-height: 1.6;
+    max-width: 100%;
+  }
+  pre .c { color: var(--code-comment); }
+  .row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  input[type=text] {
+    font-family: var(--font-mono); font-size: 13px; padding: 9px 12px; flex: 1 1 240px;
+    border: 1px solid var(--border-default); border-radius: var(--radius-small); background: var(--surface-white); color: var(--text-primary);
+  }
+  input[type=text]:focus { outline: 2px solid var(--cta-blue); outline-offset: -1px; border-color: transparent; }
+  button.go {
+    font-family: var(--font-body); font-size: 14px; padding: 9px 18px; cursor: pointer;
+    background: var(--text-dark); color: #fff; border: 1px solid var(--text-dark); border-radius: var(--radius-small);
+  }
+  button.go:hover { background: #000; }
+  button.go:disabled { opacity: .45; cursor: not-allowed; }
+  .jobout { margin-top: 12px; font-family: var(--font-mono); font-size: 13px; color: var(--text-secondary); }
+
+  /* ---------- states ---------- */
+  .msg { padding: 40px 30px; text-align: center; color: var(--text-tertiary); }
+  .msg .big { font-family: var(--font-display); font-size: 19px; color: var(--text-secondary); }
+  .msg code { font-family: var(--font-mono); font-size: 13px; background: var(--surface-1); padding: 2px 6px; border-radius: var(--radius-sharp); }
+  .skel { height: 13px; background: var(--surface-1); border-radius: var(--radius-sharp); animation: pulse 1.3s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
+
+  footer { border-top: 1px solid var(--border-subtle); padding: 26px 0 40px; color: var(--text-tertiary); font-size: 13px; }
+  footer a { color: var(--text-secondary); }
+
+  @media (max-width: 700px) {
+    .cliff { grid-template-columns: 1fr; gap: 12px; }
+    .summary p { font-size: 18px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <span class="logo">Cut<em>Point</em></span>
+    <span class="tag">Director's Notes</span>
+    <span class="spacer"></span>
+    <span class="status"><span class="dot" id="dot"></span><span id="apistate">connecting…</span></span>
+    <a class="src" href="https://github.com/DynamiteC/cut-point">Source</a>
+  </div>
+</header>
+
+<div class="wrap hero">
+  <h1>Where the trailer loses them, and what was on screen.</h1>
+  <p class="lede">
+    ClickHouse computes where viewers left, per second and per cohort. Gemini 3.5 Flash watches
+    those exact frames and says what happened. This page reads the reports live from the
+    deployed API on Cloud Run.
+  </p>
+  <div class="picker" id="picker" role="tablist" aria-label="Trailers"></div>
+</div>
+
+<main class="wrap">
+  <div class="stack" id="report"></div>
+
+  <div class="stack">
+    <section class="panel run">
+      <h2>Run an analysis</h2>
+      <p>
+        Triggering an analysis is authenticated on purpose. Each run executes ClickHouse queries,
+        an ffmpeg extraction per detected cliff and a Gemini video inference per clip, so
+        <code>POST /analyze</code> requires a Google-signed identity token from an allowlisted
+        service account. An anonymous call returns <strong>401</strong>, which is the security
+        model working rather than an outage. Reading reports needs no credential, which is why this page
+        works.
+      </p>
+      <pre><span class="c"># reading is public</span>
+curl <span id="curlbase">…</span>/report/demo_001
+
+<span class="c"># running costs money, so it is not</span>
+curl -X POST <span id="curlbase2">…</span>/analyze \
+  -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
+  -H "content-type: application/json" \
+  -d '{"trailer_id":"demo_001"}'</pre>
+      <p style="margin-top:16px">Already have a job id from the pipeline? Track it here.</p>
+      <div class="row">
+        <input type="text" id="jobid" placeholder="job id, e.g. 4f2a9c…" aria-label="Job id">
+        <button class="go" id="jobgo">Check status</button>
+      </div>
+      <div class="jobout" id="jobout"></div>
+    </section>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    Reports served from Firestore via Cloud Run. Numbers come from ClickHouse; no model produces
+    one. <a href="https://github.com/DynamiteC/cut-point/blob/main/docs/architecture.md">Architecture</a>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  // Override with ?api=... when pointing this page at a local server.
+  var API = new URLSearchParams(location.search).get("api")
+    || "https://cutpoint-api-nlfe4x5pnq-uc.a.run.app";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var el = function (tag, cls, txt) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (txt !== undefined) n.textContent = txt;   // textContent, never innerHTML:
+    return n;                                      // every string below is model output
+  };
+  var pct = function (x) { return (x * 100).toFixed(1) + "%"; };
+
+  $("curlbase").textContent = API;
+  $("curlbase2").textContent = API;
+
+  function get(path) {
+    return fetch(API + path, { headers: { accept: "application/json" } }).then(function (r) {
+      if (!r.ok) { var e = new Error("HTTP " + r.status); e.status = r.status; throw e; }
+      return r.json();
+    });
+  }
+
+  /* ---------- retention curve ----------
+     Milestones only, clamped monotonically. Retention is a survivor count and
+     cannot recover, and a cliff's drop_pct is a single-second delta -- plotting
+     it as a curve point made the line rise at the exact moment viewers left. */
+  function curve(notes) {
+    var W = 900, H = 240, PAD = 34;
+    var order = [
+      ["", 0, 1],
+      ["25%", 0.25, notes.milestone_funnel.reached_25pct],
+      ["50%", 0.50, notes.milestone_funnel.reached_50pct],
+      ["75%", 0.75, notes.milestone_funnel.reached_75pct],
+      ["end", 1.00, notes.milestone_funnel.completed]
+    ];
+    var pts = [], ceil = 1;
+    order.forEach(function (o) {
+      if (typeof o[2] !== "number") return;
+      ceil = Math.min(ceil, o[2]);
+      pts.push({ label: o[0], fx: o[1], y: ceil });
+    });
+
+    var ns = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label",
+      "Retention curve. Ends at " + pct(notes.overall_retention_end) +
+      ". " + notes.cliffs.length + " cliffs detected.");
+
+    var X = function (fx) { return PAD + fx * (W - PAD * 2); };
+    var Y = function (v) { return PAD + (1 - v) * (H - PAD * 2); };
+
+    [0, 0.25, 0.5, 0.75, 1].forEach(function (g) {
+      var l = document.createElementNS(ns, "line");
+      l.setAttribute("x1", PAD); l.setAttribute("x2", W - PAD);
+      l.setAttribute("y1", Y(g)); l.setAttribute("y2", Y(g));
+      l.setAttribute("stroke", g === 0 ? "#cfcfc9" : "#e1e7ef");
+      svg.appendChild(l);
+      var t = document.createElementNS(ns, "text");
+      t.setAttribute("x", 6); t.setAttribute("y", Y(g) + 3);
+      t.setAttribute("class", "axis"); t.textContent = Math.round(g * 100) + "%";
+      svg.appendChild(t);
+    });
+
+    // cliff markers, drawn behind the line
+    notes.cliffs.forEach(function (c) {
+      var fx = notes.duration_s ? c.second / notes.duration_s : 0;
+      var l = document.createElementNS(ns, "line");
+      l.setAttribute("x1", X(fx)); l.setAttribute("x2", X(fx));
+      l.setAttribute("y1", PAD - 8); l.setAttribute("y2", H - PAD);
+      l.setAttribute("stroke", "#c1382b"); l.setAttribute("stroke-width", "1.5");
+      l.setAttribute("stroke-dasharray", "3 3"); l.setAttribute("opacity", ".55");
+      svg.appendChild(l);
+      var t = document.createElementNS(ns, "text");
+      t.setAttribute("x", X(fx) + 4); t.setAttribute("y", PAD - 12);
+      t.setAttribute("class", "axis"); t.setAttribute("fill", "#c1382b");
+      t.textContent = c.second + "s";
+      svg.appendChild(t);
+    });
+
+    var poly = document.createElementNS(ns, "polyline");
+    poly.setAttribute("fill", "none");
+    poly.setAttribute("stroke", "#020817");
+    poly.setAttribute("stroke-width", "2.5");
+    poly.setAttribute("stroke-linejoin", "round");
+    poly.setAttribute("points", pts.map(function (p) { return X(p.fx) + "," + Y(p.y); }).join(" "));
+    svg.appendChild(poly);
+
+    pts.forEach(function (p) {
+      var c = document.createElementNS(ns, "circle");
+      c.setAttribute("cx", X(p.fx)); c.setAttribute("cy", Y(p.y)); c.setAttribute("r", 3.5);
+      c.setAttribute("fill", "#020817");
+      svg.appendChild(c);
+      if (!p.label) return;
+      var t = document.createElementNS(ns, "text");
+      t.setAttribute("x", X(p.fx)); t.setAttribute("y", H - PAD + 16);
+      t.setAttribute("class", "axis"); t.setAttribute("text-anchor", "middle");
+      t.textContent = p.label;
+      svg.appendChild(t);
+    });
+    return svg;
+  }
+
+  function severityBar(n) {
+    var wrap = el("div", "sev");
+    wrap.appendChild(document.createTextNode("severity "));
+    var i = el("i", null, "●".repeat(Math.max(0, Math.min(5, n))));
+    wrap.appendChild(i);
+    wrap.appendChild(document.createTextNode(" " + n + "/5"));
+    return wrap;
+  }
+
+  function renderReport(notes) {
+    var out = $("report");
+    out.textContent = "";
+
+    var sum = el("section", "panel summary");
+    sum.appendChild(el("div", "kicker", "Executive summary"));
+    sum.appendChild(el("p", null, notes.executive_summary));
+    out.appendChild(sum);
+
+    var v = notes.validation;
+    if (v) {
+      var pw = el("section", "panel");
+      var grid = el("div", "prov");
+      [
+        [String(v.source_rows), "rows of retention data read", false],
+        [String(v.llm_cliff_count), "numbers produced by a model", true],
+        [String(v.verified_cliff_count), "cliffs computed by ClickHouse", false],
+        [pct(notes.overall_retention_end), "viewers still watching at the end", false]
+      ].forEach(function (m) {
+        var d = el("div");
+        d.appendChild(el("div", "n" + (m[2] ? " zero" : ""), m[0]));
+        d.appendChild(el("div", "l", m[1]));
+        grid.appendChild(d);
+      });
+      pw.appendChild(grid);
+      pw.appendChild(el("div", "prov-note",
+        "Every figure above was read from ClickHouse over a read-only connection. "
+        + "The model sees frames and writes prose; it never produces a number. "
+        + "That buys provenance and reproducibility, not correctness."));
+      out.appendChild(pw);
+    }
+
+    var cv = el("section", "panel curve");
+    cv.appendChild(el("h2", null, "Retention"));
+    cv.appendChild(el("div", "sub",
+      "Milestone funnel, clamped monotonically. Dashed lines mark detected cliffs."));
+    cv.appendChild(curve(notes));
+    out.appendChild(cv);
+
+    var cs = el("section", "panel cliffs");
+    cs.appendChild(el("h2", null, notes.cliffs.length
+      ? notes.cliffs.length + " drop-off " + (notes.cliffs.length === 1 ? "cliff" : "cliffs")
+      : "No significant drop-off detected"));
+
+    notes.cliffs.forEach(function (c) {
+      var row = el("div", "cliff");
+
+      var left = el("div");
+      left.appendChild(el("div", "at", "second " + c.second));
+      left.appendChild(el("div", "drop", "-" + pct(c.drop_pct)));
+      var co = el("div", "cohorts");
+      (c.affected_cohorts || []).forEach(function (x) { co.appendChild(el("span", null, x)); });
+      left.appendChild(co);
+      left.appendChild(severityBar(c.severity));
+      row.appendChild(left);
+
+      var right = el("div");
+      [["On screen", c.on_screen], ["Why they left", c.hypothesis]].forEach(function (f) {
+        if (!f[1]) return;
+        var b = el("div", "field");
+        b.appendChild(el("div", "k", f[0]));
+        b.appendChild(el("div", "v", f[1]));
+        right.appendChild(b);
+      });
+      (c.recommendations || []).forEach(function (r) {
+        var box = el("div", "rec");
+        box.appendChild(el("div", "act",
+          r.action.replace(/_/g, " ") + " · " + r.target_range_s[0] + "s-" + r.target_range_s[1] + "s"));
+        // build_recommendation() derives the rationale from the hypothesis, so
+        // it usually restates what is already two lines above. Only show it when
+        // it actually says something new.
+        var hyp = (c.hypothesis || "").slice(0, 60).toLowerCase();
+        var rat = (r.rationale || "").slice(0, 60).toLowerCase();
+        if (rat && rat !== hyp) box.appendChild(el("div", "why", r.rationale));
+        right.appendChild(box);
+      });
+      row.appendChild(right);
+      cs.appendChild(row);
+    });
+    out.appendChild(cs);
+  }
+
+  function loading() {
+    var out = $("report");
+    out.textContent = "";
+    var p = el("section", "panel");
+    var pad = el("div", "curve");
+    for (var i = 0; i < 4; i++) {
+      var s = el("div", "skel");
+      s.style.marginBottom = "10px";
+      s.style.width = [92, 74, 88, 40][i] + "%";
+      pad.appendChild(s);
+    }
+    p.appendChild(pad);
+    out.appendChild(p);
+  }
+
+  function empty(id, status) {
+    var out = $("report");
+    out.textContent = "";
+    var p = el("section", "panel");
+    var m = el("div", "msg");
+    if (status === 404) {
+      m.appendChild(el("div", "big", "No report for " + id + " yet."));
+      var d = el("div");
+      d.style.marginTop = "8px";
+      d.appendChild(document.createTextNode("The watcher publishes work only when a trailer's cliff set changes. Run "));
+      d.appendChild(el("code", null, "make demo"));
+      d.appendChild(document.createTextNode(" locally to generate one."));
+      m.appendChild(d);
+    } else {
+      m.appendChild(el("div", "big", "Could not load " + id + "."));
+      m.appendChild(el("div", null, "The API returned " + (status || "no response") + "."));
+    }
+    p.appendChild(m);
+    out.appendChild(p);
+  }
+
+  var current = null;
+
+  function select(id, chips) {
+    current = id;
+    chips.forEach(function (c) { c.setAttribute("aria-selected", String(c.dataset.id === id)); });
+    location.hash = id;
+    loading();
+    get("/report/" + encodeURIComponent(id))
+      .then(renderReport)
+      .catch(function (e) { empty(id, e.status); });
+  }
+
+  // ---------- boot ----------
+  get("/health")
+    .then(function () { $("dot").className = "dot ok"; $("apistate").textContent = "API live"; })
+    .catch(function () { $("dot").className = "dot bad"; $("apistate").textContent = "API unreachable"; });
+
+  get("/trailers").then(function (ids) {
+    var picker = $("picker"), chips = [];
+    ids.forEach(function (id) {
+      var b = el("button", "chip", id);
+      b.dataset.id = id;
+      b.setAttribute("role", "tab");
+      b.setAttribute("aria-selected", "false");
+      b.addEventListener("click", function () { select(id, chips); });
+      picker.appendChild(b);
+      chips.push(b);
+    });
+    if (!ids.length) { empty("any trailer", 404); return; }
+
+    function fromHash() {
+      var want = decodeURIComponent(location.hash.replace("#", ""));
+      return ids.indexOf(want) >= 0 ? want : ids[0];
+    }
+    // Changing the hash is a same-document navigation, so the boot path above
+    // never re-runs. Without this, back/forward and a hand-edited hash silently
+    // did nothing while the address bar claimed otherwise.
+    window.addEventListener("hashchange", function () {
+      var id = fromHash();
+      if (current !== id) select(id, chips);
+    });
+    select(fromHash(), chips);
+  }).catch(function () {
+    $("picker").appendChild(el("span", "tag", "trailer list unavailable"));
+    empty("the trailer list", 0);
+  });
+
+  // ---------- job monitor ----------
+  $("jobgo").addEventListener("click", function () {
+    var id = $("jobid").value.trim();
+    var out = $("jobout");
+    if (!id) { out.textContent = "Enter a job id."; return; }
+    out.textContent = "checking…";
+    get("/jobs/" + encodeURIComponent(id)).then(function (j) {
+      out.textContent = "";
+      Object.keys(j).forEach(function (k) {
+        out.appendChild(el("div", null, k + ": " + j[k]));
+      });
+    }).catch(function (e) {
+      out.textContent = e.status === 404 ? "No job " + id + "." : "Lookup failed (" + e.status + ").";
+    });
+  });
+})();
+</script>
+</body>
+</html>
