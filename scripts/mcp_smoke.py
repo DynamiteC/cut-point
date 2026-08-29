@@ -1,4 +1,4 @@
-"""Phase 3 gate: spawn mcp-clickhouse over stdio exactly as the agent will, list
+"""Phase 3 gate: spawn mcp-clickhouse over stdio exactly as the agent does, list
 tools, run SELECT 1, and run retention_curve.sql for demo_001 through the MCP
 `run_query` tool.
 """
@@ -28,11 +28,19 @@ REQUIRED_ENV = [
 ]
 
 
+from agent.cutpoint_agent.mcp import _server_command
+
+_agent_command, _agent_args = _server_command()
+
 def build_server_params() -> StdioServerParameters:
     env = {k: os.environ[k] for k in REQUIRED_ENV if k in os.environ}
     return StdioServerParameters(
-        command="uv",
-        args=["run", "--with", "mcp-clickhouse", "mcp-clickhouse"],
+        # Ask the agent's own factory how it launches the server, rather than
+        # hardcoding one. This gate claims to spawn the server "exactly as the
+        # agent will"; it stopped doing so when the agent moved to the console
+        # script installed from the lockfile, so it was proving the wrong path.
+        command=_agent_command,
+        args=_agent_args,
         env=env,
         cwd=str(REPO_ROOT),
     )

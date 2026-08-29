@@ -1,5 +1,13 @@
-"""McpToolset factory for mcp-clickhouse -- the ONLY way the agent touches
-ClickHouse (read-only by design, see TASK.md section 1 rule 3).
+"""McpToolset factory for mcp-clickhouse.
+
+This was once the only way the agent touched ClickHouse. It is not any more.
+The analyst (step 1) and the validator read the database directly through
+ingest.clickhouse_client.get_readonly_client(), which pins readonly=1 at the
+session level, because the numbers were taken off the model entirely.
+
+What remains here is the narrator's tool access (step 4): the one place a model
+still queries the database, and therefore the one place that needs a boundary
+which is read-only by construction rather than by configuration.
 """
 
 from __future__ import annotations
@@ -52,7 +60,7 @@ def _server_command() -> tuple[str, list[str]]:
     """Prefer the mcp-clickhouse already installed from uv.lock.
 
     `uv run --with mcp-clickhouse mcp-clickhouse` resolved the server from PyPI
-    on every session: it ignored the pinned 0.4.1 in uv.lock, made a `uv` binary
+    on every session: it ignored the version resolved in uv.lock (0.4.1; pyproject declares a >=0.1.8 floor), made a `uv` binary
     and outbound PyPI access hard runtime requirements inside the request
     handler, and meant a new upstream release could change agent behaviour
     without a single line of this repo changing.
