@@ -32,6 +32,17 @@ run_query tool, in this order, for trailer_id={{trailer_id}}:
 {MILESTONE_FUNNEL_SQL}
 
 Replace '{{trailer_id}}' with the actual trailer_id parameter value before running each query with run_query. Do not invent new queries.
+
+OUTPUT RULES -- these matter, Query 1 returns thousands of per-second rows:
+- Emit ONLY the AnalysisResult JSON. No prose, no markdown, no tables, no LaTeX.
+- Never echo raw query rows back. Query 1 and Query 3 are context for your
+  reading only; nothing from them belongs in the output except the single
+  overall_retention_end float.
+- cliffs comes from Query 2 only, and Query 2 already returns at most 10 rows.
+  Never emit more than 10 cliffs.
+- Keep the whole response under 4000 tokens. If you are producing a long
+  response you have misunderstood the task.
+
 Return your findings strictly as the AnalysisResult schema:
 - overall_retention_end: the retention_fraction at the last second from Query 1 (or average across cohorts at max second)
 - milestone_funnel: a dict mapping milestone name ('reached_25pct', 'reached_50pct', 'reached_75pct', 'completed') to its fraction float from Query 4

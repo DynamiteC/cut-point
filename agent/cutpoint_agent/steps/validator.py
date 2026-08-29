@@ -31,6 +31,8 @@ from agent.cutpoint_agent.schemas import AnalysisResult, CliffPoint, ValidationR
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 CHANGEPOINTS_SQL = REPO_ROOT / "sql" / "analysis" / "changepoints.sql"
+RETENTION_SQL = REPO_ROOT / "sql" / "analysis" / "retention_curve.sql"
+FUNNEL_SQL = REPO_ROOT / "sql" / "analysis" / "milestone_funnel.sql"
 
 # Below this the LLM and ClickHouse are saying the same thing about a cliff.
 DROP_PCT_TOLERANCE = 0.005
@@ -50,9 +52,7 @@ def _valid_id(value: str) -> bool:
 
 
 def query_cliffs(client, trailer_id: str) -> list[CliffPoint]:
-    if not _valid_id(trailer_id):
-        raise ValueError(f"invalid trailer_id: {trailer_id!r}")
-    sql = CHANGEPOINTS_SQL.read_text().replace("{trailer_id}", trailer_id)
+    sql = _render(CHANGEPOINTS_SQL, trailer_id)
     return [
         CliffPoint(
             second=int(r[0]),
@@ -62,6 +62,29 @@ def query_cliffs(client, trailer_id: str) -> list[CliffPoint]:
         )
         for r in client.query(sql).result_rows
     ]
+
+
+def query_funnel(client, trailer_id: str) -> dict[str, float]:
+    """Milestone funnel straight from windowFunnel(), no model in the path."""
+    sql = _render(FUNNEL_SQL, trailer_id)
+    return {str(r[0]): float(r[1]) for r in client.query(sql).result_rows}
+
+
+def query_retention_end(client, trailer_id: str) -> float | None:
+    """Mean retention_fraction across cohorts at the final second."""
+    sql = _render(RETENTION_SQL, trailer_id)
+    rows = client.query(sql).result_rows
+    if not rows:
+        return None
+    last_second = max(int(r[1]) for r in rows)
+    finals = [float(r[4]) for r in rows if int(r[1]) == last_second]
+    return sum(finals) / len(finals) if finals else None
+
+
+def _render(path: Path, trailer_id: str) -> str:
+    if not _valid_id(trailer_id):
+        raise ValueError(f"invalid trailer_id: {trailer_id!r}")
+    return path.read_text().replace("{trailer_id}", trailer_id)
 
 
 def source_row_count(client, trailer_id: str) -> int:
@@ -101,7 +124,30 @@ def validate(analysis: AnalysisResult, client) -> tuple[AnalysisResult, Validati
         if second not in truth_by_second:
             corrected.append(f"second {second}: reported by the analyst, absent from ClickHouse")
 
-    verified = analysis.model_copy(update={"cliffs": truth})
+    # Recompute the scalar metrics too, so nothing in AnalysisResult depends on
+    # the model having transcribed accurately. With this the analyst is a
+    # convenience, not a correctness dependency: if it hallucinates, times out
+    # or returns truncated JSON, ClickHouse still supplies every number.
+    update: dict = {"cliffs": truth}
+
+    funnel = query_funnel(client, analysis.trailer_id)
+    if funnel:
+        for key, actual in funnel.items():
+            claimed = analysis.milestone_funnel.get(key)
+            if claimed is None or abs(claimed - actual) > DROP_PCT_TOLERANCE:
+                corrected.append(f"milestone_funnel[{key}]: {claimed} -> {actual:.4f}")
+        update["milestone_funnel"] = funnel
+
+    retention_end = query_retention_end(client, analysis.trailer_id)
+    if retention_end is not None:
+        if abs(analysis.overall_retention_end - retention_end) > DROP_PCT_TOLERANCE:
+            corrected.append(
+                f"overall_retention_end: {analysis.overall_retention_end:.4f} "
+                f"-> {retention_end:.4f}"
+            )
+        update["overall_retention_end"] = retention_end
+
+    verified = analysis.model_copy(update=update)
     report = ValidationReport(
         verified=not corrected,
         source_rows=rows,

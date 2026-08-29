@@ -15,9 +15,15 @@ BAD_ID = "demo_001'; DROP" + " TABLE cutpoint.trailers--"
 
 
 class FakeClient:
-    def __init__(self, rows, cliff_rows):
+    """Dispatches by query shape: the validator now runs three different SQL
+    files (changepoints, milestone_funnel, retention_curve) plus a row count.
+    """
+
+    def __init__(self, rows, cliff_rows, funnel_rows=None, curve_rows=None):
         self.rows = rows
         self.cliff_rows = cliff_rows
+        self.funnel_rows = funnel_rows if funnel_rows is not None else []
+        self.curve_rows = curve_rows if curve_rows is not None else []
         self.queries = []
 
     def query(self, sql, parameters=None):
@@ -27,7 +33,16 @@ class FakeClient:
             pass
 
         r = R()
-        r.result_rows = [(self.rows,)] if "count()" in sql else self.cliff_rows
+        # Order matters: milestone_funnel.sql also contains "count()" in its
+        # totals CTE, so the specific matches must be tested first.
+        if "windowFunnel" in sql:
+            r.result_rows = self.funnel_rows
+        elif "retention_fraction" in sql:
+            r.result_rows = self.curve_rows
+        elif "mv_second_viewers WHERE" in sql:
+            r.result_rows = [(self.rows,)]
+        else:
+            r.result_rows = self.cliff_rows
         return r
 
 
@@ -94,3 +109,34 @@ def test_validator_rejects_an_id_that_would_reach_query_text() -> None:
     analysis = _analysis([]).model_copy(update={"trailer_id": BAD_ID})
     with pytest.raises(ValueError):
         validate(analysis, client)
+
+
+def test_every_number_is_recomputed_so_the_analyst_is_not_a_dependency() -> None:
+    """If the analyst hallucinates, times out or returns truncated JSON, the
+    report must still be correct. Nothing in AnalysisResult may survive from the
+    model when ClickHouse can supply it.
+    """
+    # Arrange: an analyst that got literally everything wrong
+    client = FakeClient(
+        rows=900,
+        cliff_rows=[(47, 0.22, -17.4, ["18-24"])],
+        funnel_rows=[("reached_25pct", 0.70), ("completed", 0.35)],
+        curve_rows=[("18-24", 90, 100, 300, 0.33), ("25-34", 90, 100, 300, 0.37)],
+    )
+    garbage = AnalysisResult(
+        trailer_id="demo_001",
+        overall_retention_end=0.99,
+        milestone_funnel={"completed": 0.99},
+        cliffs=[_cliff(999, 0.99)],
+    )
+
+    # Act
+    verified, report = validate(garbage, client)
+
+    # Assert: every field replaced by the database's answer
+    assert [c.second for c in verified.cliffs] == [47]
+    assert verified.milestone_funnel == {"reached_25pct": 0.70, "completed": 0.35}
+    assert verified.overall_retention_end == pytest.approx(0.35)  # mean of 0.33 and 0.37
+    assert report.verified is False
+    assert any("overall_retention_end" in c for c in report.corrected)
+    assert any("milestone_funnel" in c for c in report.corrected)
