@@ -29,7 +29,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
-from agent.cutpoint_agent import store
+from agent.cutpoint_agent import obs, store
 from api.auth import verify_google_identity
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -74,8 +74,8 @@ def _validate_cloud_config() -> None:
         )
     if os.environ.get("CUTPOINT_REQUIRE_AUTH", "true").lower() == "false":
         # Loud, not fatal: someone may be debugging a deployed revision.
-        print("[api] WARNING: CUTPOINT_REQUIRE_AUTH=false in a cloud deployment; "
-              "the paid endpoints are unauthenticated.")
+        obs.warning("CUTPOINT_REQUIRE_AUTH=false in a cloud deployment; "
+                    "the paid endpoints are unauthenticated")
 
 
 _validate_cloud_config()
@@ -128,6 +128,8 @@ def _run_pipeline_guarded(trailer_id: str) -> dict:
             status_code=429,
             detail=f"at capacity ({_MAX_CONCURRENT} concurrent analyses); retry shortly",
         )
+    run_id = obs.new_run_id()
+    obs.info("pipeline start", trailer_id=trailer_id, run_id=run_id)
     try:
         # Reserve before running, so concurrent callers cannot both pass the
         # check, but refund a reservation the pipeline never actually spent.
@@ -142,10 +144,14 @@ def _run_pipeline_guarded(trailer_id: str) -> dict:
                 detail=f"daily analysis budget of {_MAX_PER_DAY} reached; resets at 00:00 UTC",
             )
         try:
-            return get_pipeline_runner()(trailer_id)
-        except Exception:
+            result = get_pipeline_runner()(trailer_id)
+        except Exception as exc:
             store.bump_daily_analyses(day, delta=-1)
+            obs.error("pipeline failed", trailer_id=trailer_id,
+                      error=f"{type(exc).__name__}: {exc}"[:300])
             raise
+        obs.info("pipeline complete", trailer_id=trailer_id, budget_used=reserved)
+        return result
     finally:
         _pipeline_slots.release()
 

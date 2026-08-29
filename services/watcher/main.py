@@ -27,7 +27,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException
 
-from agent.cutpoint_agent import store
+from agent.cutpoint_agent import obs, store
 from api.auth import verify_google_identity
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -135,7 +135,11 @@ def pubsub_scan(envelope: dict, caller: str = Depends(verify_google_identity)) -
     finally:
         client.close()
 
-    print(f"[watcher] scan complete, {len(triggered)} trailer(s) triggered: {triggered}")
+    obs.info(
+        "scan complete",
+        triggered_count=len(triggered),
+        triggered=[t["trailer_id"] for t in triggered],
+    )
     return {"triggered": triggered}
 
 
@@ -153,11 +157,11 @@ def _degraded(stage: str, exc: Exception) -> dict:
     scheduled tick still runs.
     """
     detail = f"{type(exc).__name__}: {exc}"[:500]
-    print(f"[watcher] SCAN FAILED at {stage}: {detail}")
+    obs.error("scan failed", stage=stage, error=detail, component="watcher")
     try:
         store.save_watch_error(
             {"stage": stage, "error": detail, "component": "watcher"}
         )
     except Exception as store_exc:  # noqa: BLE001 -- never mask the original
-        print(f"[watcher] could not record the failure: {store_exc}")
+        obs.error("could not record the scan failure", error=str(store_exc)[:200])
     return {"status": "degraded", "stage": stage, "error": detail}

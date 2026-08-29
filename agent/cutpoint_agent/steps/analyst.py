@@ -19,6 +19,7 @@ from google.adk.events import Event
 from google.adk.events.event_actions import EventActions
 from google.genai import types
 
+from agent.cutpoint_agent import obs
 from agent.cutpoint_agent.config import gemini_model
 from agent.cutpoint_agent.mcp import clickhouse_toolset
 from agent.cutpoint_agent.prompts import ANALYST_INSTRUCTION
@@ -43,7 +44,10 @@ class ResilientAnalystAgent(BaseAgent):
                 yield event
         except Exception as exc:  # noqa: BLE001 -- recorded below, never fatal
             detail = f"{type(exc).__name__}: {exc}"[:500]
-            print(f"[analyst] degraded, continuing on database values only: {detail}")
+            obs.warning(
+                "analyst degraded, continuing on database values only",
+                step="analyst", error=detail, trailer_id=trailer_id,
+            )
             yield Event(
                 author=self.name,
                 actions=EventActions(
