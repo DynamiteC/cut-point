@@ -14,6 +14,10 @@ renders Director's Notes with recut recommendations.
 Nothing has to ask for it. Cloud Scheduler ticks a Pub/Sub topic every 15 minutes, a watcher
 re-runs cliff detection against live data, and only a genuinely new cliff triggers the pipeline.
 
+The scheduler is created **paused** by `deploy_all.sh`, so a plain deploy does not tick until it
+is resumed. An enabled `*/15` tick wakes the watcher 96 times a day, which is real money for a
+demonstration nobody is watching.
+
 ## Deployed footprint
 
 | Resource | Name | Access |
@@ -154,7 +158,9 @@ a connection pinned to `readonly=1` at the session level, so the server itself r
 2. `api/main.py` invokes `agent/run_pipeline.py`'s `run_live()`, which builds the ADK
    `root_agent` and runs it against an ADK `InMemoryRunner` session seeded with
    `trailer_id`, `video_path`, `title`, `duration_s`.
-3. **analyst**: an `LlmAgent` with the `mcp-clickhouse` toolset. Its instruction pins it to
+3. **analyst**: a deterministic `BaseAgent`. It contains no model call. It runs the fixed `.sql`
+   files over a `readonly=1` connection. It was once an `LlmAgent` with the `mcp-clickhouse`
+   toolset, whose instruction pinned it to
    executing exactly `sql/analysis/retention_curve.sql`, `changepoints.sql`,
    `cohort_divergence.sql`, `milestone_funnel.sql` for the given `trailer_id`, and returns a
    structured `AnalysisResult` (`output_schema`).

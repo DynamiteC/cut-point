@@ -87,7 +87,7 @@ make demo
 
 This is the part that separates this from a wrapper around an API. Do not rush it.
 
-**Beat one: no model produced a number.** Switch to the editor, `analyst.py`.
+**Beat one: no model produced a measurement.** Switch to the editor, `analyst.py`.
 
 > "Step one has no model in it. It reads the cliffs, the funnel and the retention curve straight
 > from ClickHouse over a read-only connection. That is not a stylistic preference. It is the
@@ -97,13 +97,14 @@ Switch to `tests/test_validator.py`.
 
 > "This step used to be a language model transcribing query results. On a real run it reported
 > one cliff, at second two, which does not exist in the database, and it missed all three that
-> do. So we took the numbers off it. That test is kept purely as the record of why."
+> do. So we took the measurements off it. That test is kept purely as the record of why."
 
 **Beat two: the model still has a job, and its output is checked too.** Switch to the app page,
 `demo_001`. Point at the executive summary, then at the provenance strip.
 
 > "Gemini writes this paragraph, from findings it did not compute. Six hundred rows read, three
-> cliffs computed by ClickHouse, and zero numbers produced by a model."
+> cliffs computed by ClickHouse, and zero measurements produced by a model. Gemini does rate how
+> bad each moment is, one to five, and that rating picks the recut action. It measures nothing."
 
 > "The first version of that step named the data in its prompt instead of including it. It
 > received nothing, and confidently described a poorly rendered CGI explosion and three thousand

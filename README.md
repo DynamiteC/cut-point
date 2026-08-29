@@ -85,8 +85,13 @@ gcloud auth login && gcloud config set project YOUR_PROJECT
 ```
 
 `deploy_all.sh` is idempotent and safe to re-run. It creates service accounts, Firestore, a GCS
-bucket, both topics with OIDC push subscriptions, the Cloud Scheduler tick, and all Cloud Run
-services, each pinned to `--min-instances=0 --max-instances=1`.
+bucket, both topics with OIDC push subscriptions, the Cloud Scheduler tick, and the `cutpoint-api`
+and `cutpoint-watcher` services, each pinned to `--min-instances=0 --max-instances=1`. It does
+**not** deploy the extractor: that has its own script, run first above, and `deploy_all.sh` only
+resolves its URL into `SEGMENT_EXTRACTOR_URL`.
+
+**The Cloud Scheduler job is created paused.** After a plain deploy the loop does not tick until
+you resume it, or deploy with `CUTPOINT_ENABLE_SCHEDULE=1`.
 
 **Run `./deploy/teardown.sh` after judging** to stop all charges. Add `--purge-data` to also
 remove Firestore contents and the bucket.
@@ -233,7 +238,10 @@ caller identity are never served anonymously.
 1. **Determinism over autonomy**: The pipeline order is fixed by code (`SequentialAgent`),
    never chosen by an LLM. The model is used only for perception and language.
 
-2. **Read-only analytics access**: All agent-side ClickHouse queries go through `mcp-clickhouse`
+2. **Read-only analytics access**: Every agent-side read is read-only, by two different means.
+   The numeric path (analyst, and the watcher) uses `clickhouse-connect` with `readonly=1` set on
+   the client by `ingest/clickhouse_client.py::get_readonly_client()`, so the server refuses a
+   write. Only the narrator (step 4) reaches ClickHouse through `mcp-clickhouse`
    (read-only by construction). The write path (`ingest/`, `make schema`) uses
    `clickhouse-connect` directly and is structurally separated.
 
@@ -323,7 +331,8 @@ agent/
 │   ├── schemas.py         # Pydantic models (AnalysisResult, Diagnosis, DirectorsNotes)
 │   ├── mcp.py             # mcp-clickhouse stdio session management
 │   └── steps/
-│       ├── analyst.py     # LlmAgent + McpToolset (the only LLM-driven step)
+│       ├── analyst.py     # deterministic: fixed SQL over readonly=1, no model
+│       ├── narrator.py    # LlmAgent + McpToolset (the only LLM-driven step)
 │       ├── extractor.py   # BaseAgent wrapping run_extraction()
 │       ├── diagnostician.py  # BaseAgent wrapping diagnose_clip() per cliff
 │       └── reporter.py    # BaseAgent wrapping build_directors_notes()
@@ -554,7 +563,9 @@ Full reports with charts: [docs/perf/README.md](docs/perf/README.md)
 - **Frontend**: `index.html` is the landing page and `app.html` is the working UI, both
   hosted on GitHub Pages and reading live from the deployed API. The REST facade at
   `api/main.py` provides the stable contract; `docs/frontend-spec.md` documents it.
-- **Read-only agent access**: All agent ClickHouse queries go through `mcp-clickhouse`.
+- **Read-only agent access**: Agent reads are read-only either way. The analyst and the watcher
+  use `clickhouse-connect` with `readonly=1` via `get_readonly_client()`; `mcp-clickhouse` is used
+  only by the narrator, the one step where a model queries the database.
   Direct `clickhouse-connect` is confined to `ingest/` and `make schema`.
 - **Mocks live only in tests**: No silent stubs. Missing credentials produce
   `MissingCredentialError` with fix instructions.

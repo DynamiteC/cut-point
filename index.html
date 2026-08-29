@@ -825,7 +825,8 @@
         <div class="step-body">
           The watcher starts the work. Every 15 minutes it looks for new drops. If nothing
           changed, it stops and spends nothing. If a new drop is there, it starts all five steps.
-          No person is part of this.
+          No person is part of this. The timer is off between demonstrations, so that it does not
+          spend money when nobody is watching.
         </div>
         <span class="step-badge">Cloud Scheduler &bull; Pub/Sub</span>
       </div>
@@ -928,9 +929,9 @@
         <div class="step-num">TRUST</div>
         <div class="step-title">0 measurements from a model</div>
         <div class="step-body">
-          A model writes the words, and rates how bad each moment is. A model never measures
-          anything. Every second, percentage and count comes from the database. Each report
-          shows this figure, so you can check it yourself.
+          A model writes the words. It also rates how bad each moment is, from 1 to 5, and that
+          rating picks what to change. A model never measures anything: every second, percentage
+          and count comes from the database. Each report shows this figure, so you can check it.
         </div>
         <span class="step-badge">app.html</span>
       </div>

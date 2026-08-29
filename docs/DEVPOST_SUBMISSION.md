@@ -42,14 +42,15 @@ built an agent that does, and then made it run without being asked.
 
 ### What it does
 
-Cloud Scheduler ticks a Pub/Sub topic every 15 minutes. A watcher on Cloud Run re-runs
+Cloud Scheduler ticks a Pub/Sub topic every 15 minutes. The job is created paused, and is
+resumed only for a demonstration, because an always-on tick is spend with no reader. A watcher on Cloud Run re-runs
 change-point detection over live ClickHouse data, fingerprints the resulting cliff set, and
 compares it to the last fingerprint in Firestore. If nothing changed it does nothing, which is
 what stops it becoming an expensive cron job. If a genuinely new cliff appeared it publishes to a
 second topic, and the pipeline runs end to end with no human involved:
 
 1. **Analyst** reads cliffs, funnel and retention straight from ClickHouse over a `readonly=1`
-   connection. No model is involved in producing a number.
+   connection. It is a deterministic step containing no model call.
 2. **Extractor** clips five seconds either side of each cliff with ffmpeg on Cloud Run.
 3. **Diagnostician** sends each clip to Gemini 3.5 Flash and asks what is on screen and why it
    cost viewers.

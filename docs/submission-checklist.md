@@ -36,7 +36,7 @@ Requirement to artifact, for both entries. Every row names something a judge can
 | Requirement | Artifact |
 |---|---|
 | Gemini and Google Cloud | As above |
-| ClickHouse partner track | `sql/analysis/`: MAD z-score change-point detection, `AggregatingMergeTree` with `uniqState`/`uniqMerge`, native `windowFunnel()`. Agent access via `mcp-clickhouse`, read-only |
+| ClickHouse partner track | `sql/analysis/`: MAD z-score change-point detection, `AggregatingMergeTree` with `uniqState`/`uniqMerge`, native `windowFunnel()`. The analyst and watcher read over `readonly=1`; the narrator's tool access goes through `mcp-clickhouse`, read-only by construction |
 | Film and media workflow | Trailer retention diagnosis producing Director's Notes with per-cliff recut actions |
 
 ## Honesty

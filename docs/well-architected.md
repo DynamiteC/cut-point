@@ -68,7 +68,7 @@ retention expires rather than quarantined for inspection.
 
 | | |
 |---|---|
-| Scale to zero | All three services `--min-instances=0 --max-instances=1`. |
+| Scale to zero | All three services `--min-instances=0 --max-instances=1`. Note that `deploy_all.sh` creates only `cutpoint-api` and `cutpoint-watcher`; the extractor is deployed by `services/segment_extractor/deploy_cloud_run.sh` and `deploy_all.sh` only resolves its URL. |
 | Work avoidance | The watcher's fingerprint is the main cost control: an unchanged trailer triggers nothing, and a trailer with zero cliffs never starts a pipeline at all. |
 | Hard ceiling | `CUTPOINT_MAX_ANALYSES_PER_DAY` (default 25), counted with an atomic Firestore increment, reserved before a run and refunded when the run does not happen. |
 | Concurrency | `CUTPOINT_MAX_CONCURRENT_PIPELINES` (default 2), shedding with 429. Without it FastAPI's 40-slot threadpool allowed 40 simultaneous pipelines per instance. |
