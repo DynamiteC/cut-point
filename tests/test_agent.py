@@ -99,7 +99,8 @@ def test_diagnostician_uses_mocked_gemini_client_never_real_vertex():
     )
     mock_client.models.generate_content.return_value = mock_response
 
-    diagnoses = run_diagnostics(analysis, extraction, mock_client, "gemini-3.5-flash")
+    diagnoses, failures = run_diagnostics(analysis, extraction, mock_client, "gemini-3.5-flash")
+    assert failures == []
 
     assert len(diagnoses) == 1
     assert diagnoses[0].severity == 4
@@ -132,3 +133,56 @@ def test_reporter_writes_valid_directors_notes(tmp_path):
     assert out_path.exists()
     reloaded = json.loads(out_path.read_text())
     assert reloaded["trailer_id"] == "demo_001"
+
+
+def test_one_failing_clip_does_not_discard_the_others(tmp_path):
+    """The chaos suite claims per-clip blast-radius containment. It has to be true:
+    a raising diagnose_clip used to abort the run and throw away both the
+    diagnoses already obtained and all the extraction spend behind them.
+    """
+    from agent.cutpoint_agent.schemas import AnalysisResult, ClipRef, ExtractionResult
+    from agent.cutpoint_agent.steps.diagnostician import run_diagnostics
+
+    analysis = AnalysisResult(
+        trailer_id="demo_001",
+        overall_retention_end=0.35,
+        milestone_funnel={"completed": 0.35},
+        cliffs=[
+            {"second": 10, "drop_pct": 0.2, "affected_cohorts": ["18-24"], "z_score": -5.0},
+            {"second": 20, "drop_pct": 0.3, "affected_cohorts": ["18-24"], "z_score": -6.0},
+        ],
+    )
+    clip_a = tmp_path / "a.mp4"
+    clip_b = tmp_path / "b.mp4"
+    clip_a.write_bytes(b"\x00fake-mp4")
+    clip_b.write_bytes(b"\x00fake-mp4")
+    extraction = ExtractionResult(
+        trailer_id="demo_001",
+        clips=[
+            ClipRef(second=10, clip_path=str(clip_a), start_s=5, end_s=15),
+            ClipRef(second=20, clip_path=str(clip_b), start_s=15, end_s=25),
+        ],
+    )
+
+    calls = []
+
+    class Models:
+        def generate_content(self, **kwargs):
+            calls.append(1)
+            if len(calls) == 1:
+                raise TimeoutError("Gemini timed out on this clip")
+
+            class R:
+                text = '{"on_screen":"x","hypothesis":"y","severity":3,"confidence":0.8}'
+
+            return R()
+
+    class FlakyClient:
+        models = Models()
+
+    diagnoses, failures = run_diagnostics(analysis, extraction, FlakyClient(), "gemini-3.5-flash")
+
+    assert len(diagnoses) == 1, "the surviving clip's diagnosis must be kept"
+    assert len(failures) == 1
+    assert failures[0]["second"] == 10
+    assert "TimeoutError" in failures[0]["error"]

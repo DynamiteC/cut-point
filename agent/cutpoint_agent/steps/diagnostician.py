@@ -90,24 +90,51 @@ def diagnose_clip(client: genai.Client, model: str, clip_path: str, second: int,
 
 def run_diagnostics(
     analysis: AnalysisResult, extraction: ExtractionResult, client: genai.Client, model: str
-) -> list[Diagnosis]:
+) -> tuple[list[Diagnosis], list[dict]]:
+    """Diagnose every clip. One clip failing must not lose the other findings.
+
+    The chaos suite claims per-clip blast-radius containment, but a raising
+    diagnose_clip aborted the whole run and discarded the diagnoses already
+    obtained, along with all the extraction spend behind them. Failures are now
+    collected and reported instead of thrown away.
+
+    Returns (diagnoses, failures) so the reporter can state coverage honestly
+    rather than implying every cliff was examined.
+    """
     cliff_by_second = {c.second: c for c in analysis.cliffs}
-    diagnoses = []
+    diagnoses: list[Diagnosis] = []
+    failures: list[dict] = []
     for clip in extraction.clips:
-        cliff = cliff_by_second[clip.second]
-        diagnoses.append(
-            diagnose_clip(
-                client,
-                model,
-                clip.clip_path,
-                clip.second,
-                cliff.drop_pct,
-                cliff.affected_cohorts,
-                clip.start_s,
-                clip.end_s,
+        cliff = cliff_by_second.get(clip.second)
+        if cliff is None:
+            failures.append({"second": clip.second, "error": "no matching cliff in analysis"})
+            continue
+        try:
+            diagnoses.append(
+                diagnose_clip(
+                    client,
+                    model,
+                    clip.clip_path,
+                    clip.second,
+                    cliff.drop_pct,
+                    cliff.affected_cohorts,
+                    clip.start_s,
+                    clip.end_s,
+                )
             )
+        except Exception as exc:  # noqa: BLE001 -- deliberate per-clip isolation
+            # Blind by design: any failure diagnosing ONE clip (timeout, 5xx,
+            # corrupt media, safety block) must be contained to that clip.
+            failures.append(
+                {"second": clip.second, "error": f"{type(exc).__name__}: {exc}"[:300]}
+            )
+
+    if extraction.clips and not diagnoses:
+        # Every clip failed. That is not a report, it is an outage.
+        raise RuntimeError(
+            f"all {len(extraction.clips)} clip diagnoses failed: {failures[:3]}"
         )
-    return diagnoses
+    return diagnoses, failures
 
 
 class DiagnosticianAgent(BaseAgent):
@@ -121,11 +148,14 @@ class DiagnosticianAgent(BaseAgent):
 
         client = build_genai_client()
         model = gemini_model()
-        diagnoses = run_diagnostics(analysis, extraction, client, model)
+        diagnoses, failures = run_diagnostics(analysis, extraction, client, model)
 
         yield Event(
             author=self.name,
             actions=EventActions(
-                state_delta={"diagnoses": [d.model_dump(mode="json") for d in diagnoses]}
+                state_delta={
+                    "diagnoses": [d.model_dump(mode="json") for d in diagnoses],
+                    "diagnosis_failures": failures,
+                }
             ),
         )

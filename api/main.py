@@ -225,11 +225,15 @@ def get_report(trailer_id: str = PathParam(..., pattern=TRAILER_ID_PATTERN)) -> 
 @app.get("/report/{trailer_id}/html", response_class=HTMLResponse)
 def get_report_html(trailer_id: str = PathParam(..., pattern=TRAILER_ID_PATTERN)) -> str:
     html_path = REPORTS_DIR / f"{trailer_id}.html"
-    if not html_path.exists():
-        from report.render import render_report_from_json
+    if html_path.exists():
+        return html_path.read_text()
 
-        report_path = REPORTS_DIR / f"{trailer_id}.json"
-        if not report_path.exists():
-            raise HTTPException(status_code=404, detail=f"no report found for {trailer_id}")
-        _, html_path = render_report_from_json(report_path)
-    return html_path.read_text()
+    # Render in-memory and return the string. The previous version wrote the
+    # HTML file from this GET handler, so two concurrent requests for an
+    # unrendered report raced: one truncated the file the other was reading and
+    # a judge could be served a half-written page. A read path should not write.
+    from agent.cutpoint_agent.schemas import DirectorsNotes
+    from report.render import render_html
+
+    notes_dict = get_report(trailer_id)
+    return render_html(DirectorsNotes.model_validate(notes_dict))

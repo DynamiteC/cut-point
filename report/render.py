@@ -35,8 +35,14 @@ _env = Environment(
 
 
 def build_retention_curve_points(notes: DirectorsNotes) -> list[tuple[float, float]]:
-    """Approximate retention curve from milestone_funnel + cliffs (the report
-    schema does not carry the full per-second curve -- see PROGRESS.md).
+    """Approximate retention curve from milestone_funnel (the report schema does
+    not carry the full per-second curve -- see PROGRESS.md).
+
+    Cliffs are deliberately NOT plotted as curve points. cliff.drop_pct is a
+    single-second drop, so plotting it as 1 - drop_pct put a 13.5% cliff at
+    y=0.865, above a milestone curve already down at 0.53, and the line rose at
+    exactly the moment the report says viewers left. Cliffs are drawn as
+    vertical markers instead (build_cliff_marker_x).
     """
     points = [(0.0, 1.0)]
     milestone_fractions = {
@@ -48,10 +54,16 @@ def build_retention_curve_points(notes: DirectorsNotes) -> list[tuple[float, flo
     for key, x_fraction in milestone_fractions.items():
         if key in notes.milestone_funnel:
             points.append((x_fraction * notes.duration_s, notes.milestone_funnel[key]))
-    for cliff in notes.cliffs:
-        points.append((cliff.second, max(0.0, 1.0 - cliff.drop_pct)))
     points.sort(key=lambda p: p[0])
-    return points
+
+    # Retention is a survivor count: it cannot increase over time. Clamp so a
+    # noisy funnel value can never render as viewers coming back.
+    monotonic: list[tuple[float, float]] = []
+    ceiling = 1.0
+    for second, retention in points:
+        ceiling = min(ceiling, retention)
+        monotonic.append((second, ceiling))
+    return monotonic
 
 
 def build_svg_polyline(notes: DirectorsNotes, width: int = 760, height: int = 220) -> str:

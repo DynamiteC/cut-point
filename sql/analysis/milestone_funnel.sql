@@ -2,10 +2,13 @@
 -- This is a judged showcase query -- it must use windowFunnel, not manual step counting.
 -- Params: {trailer_id}
 WITH trailer_duration AS (
-    SELECT duration_s
+    -- cutpoint.trailers is a ReplacingMergeTree. Before a merge runs, several
+    -- versions of a row coexist, so "LIMIT 1" without FINAL returned whichever
+    -- part was read first and the funnel silently changed between runs.
+    -- argMax picks the newest version deterministically regardless of merge state.
+    SELECT argMax(duration_s, created_at) AS duration_s
     FROM cutpoint.trailers
     WHERE trailer_id = '{trailer_id}'
-    LIMIT 1
 ),
 per_session AS (
     SELECT
