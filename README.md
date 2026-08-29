@@ -91,6 +91,20 @@ services, each pinned to `--min-instances=0 --max-instances=1`.
 **Run `./deploy/teardown.sh` after judging** to stop all charges. Add `--purge-data` to also
 remove Firestore contents and the bucket.
 
+### The UI
+
+`app.html` reads live from the deployed API and needs no build step. Open it locally with any
+static server, or point it at another API with `?api=`:
+
+```bash
+python -m http.server 8899          # then open http://127.0.0.1:8899/app.html
+```
+
+Published at https://dynamitec.github.io/cut-point/app.html once the repository is pushed with GitHub Pages enabled.
+
+It is a reader, not a trigger. `POST /analyze` requires an allowlisted service account, so the
+page explains that 401 rather than offering a button that would always fail.
+
 ### A note on the running deployment
 
 The services are deployed and the endpoints above are live, but the deployment is deliberately
@@ -431,6 +445,7 @@ and SQL injection. CORS open per hackathon spec (would need auth in production).
 | Path | Purpose |
 |------|---------|
 | `agent/` | Google ADK agent: `cutpoint_agent/agent.py` is the `root_agent` entrypoint |
+| `app.html` | The UI. Reads live from the deployed API; no build step |
 | `agent/cutpoint_agent/steps/analyst.py` | Reads every number from ClickHouse directly. No model involved |
 | `agent/cutpoint_agent/steps/narrator.py` | The model's language job, with a grounding check on its output |
 | `agent/cutpoint_agent/steps/validator.py` | The measurement that moved the numbers off the model, kept as evidence |

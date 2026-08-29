@@ -15,7 +15,7 @@ Requirement to artifact, for both entries. Every row names something a judge can
 | Requirement | Artifact |
 |---|---|
 | Category | The Taskmaster |
-| Hosted project URL | `https://cutpoint-api-nlfe4x5pnq-uc.a.run.app` (read endpoints public) |
+| Hosted project URL | https://dynamitec.github.io/cut-point/app.html (UI, reads the live API). API direct: `https://cutpoint-api-nlfe4x5pnq-uc.a.run.app` |
 | Text description | `docs/DEVPOST_SUBMISSION.md` |
 | Public code repository | https://github.com/DynamiteC/cut-point |
 | Spin-up instructions in README | `README.md`, Quickstart: local in five commands, plus a scripted cloud deploy and teardown |
