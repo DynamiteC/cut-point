@@ -505,6 +505,9 @@ Full reports with charts: [docs/perf/README.md](docs/perf/README.md)
 | Document | Purpose |
 |----------|---------|
 | [docs/architecture.md](docs/architecture.md) | System architecture, component boundaries, and pipeline sequence flow |
+| [docs/DEVPOST_SUBMISSION.md](docs/DEVPOST_SUBMISSION.md) | What was built, how, what went wrong, and what was learned |
+| [docs/BLOCKERS.md](docs/BLOCKERS.md) | Known limitations, stated plainly |
+| [docs/submission-checklist.md](docs/submission-checklist.md) | Requirement to artifact traceability |
 | [deploy/deploy_all.sh](deploy/deploy_all.sh) | Every Google Cloud resource this project creates, in order |
 | [docs/perf/README.md](docs/perf/README.md) | Performance, soak, and resilience test suite overview |
 | [docs/perf/load-report.md](docs/perf/load-report.md) | ClickHouse & REST API load test benchmarks with charts |
