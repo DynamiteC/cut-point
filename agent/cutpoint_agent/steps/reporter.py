@@ -22,6 +22,7 @@ from agent.cutpoint_agent.schemas import (
     DirectorsNotes,
     ExtractionResult,
     RecutRecommendation,
+    ValidationReport,
 )
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -110,6 +111,11 @@ class ReporterAgent(BaseAgent):
         notes = build_directors_notes(
             analysis.trailer_id, title, duration_s, analysis, extraction, diagnoses
         )
+        validation = ctx.session.state.get("validation_report")
+        if validation:
+            notes = notes.model_copy(
+                update={"validation": ValidationReport.model_validate(validation)}
+            )
         report_path = write_report_json(notes)
         # On Cloud Run the line above lands on an ephemeral per-instance disk that
         # the instance serving GET /report will never see. In firestore mode the

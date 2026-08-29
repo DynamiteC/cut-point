@@ -21,6 +21,16 @@ class AnalysisResult(BaseModel):
     cliffs: list[CliffPoint]
 
 
+class ValidationReport(BaseModel):
+    """Evidence that the numbers in the report came from ClickHouse, not the LLM."""
+
+    verified: bool
+    source_rows: int
+    llm_cliff_count: int
+    verified_cliff_count: int
+    corrected: list[str] = Field(default_factory=list)
+
+
 class ClipRef(BaseModel):
     second: int
     clip_path: str
@@ -68,3 +78,7 @@ class DirectorsNotes(BaseModel):
     milestone_funnel: dict[str, float]
     cliffs: list[CliffFinding]
     executive_summary: str
+    # Evidence that every number above was re-derived from ClickHouse rather
+    # than trusted from the analyst's transcription. Optional so existing
+    # fixtures and reports stay loadable.
+    validation: ValidationReport | None = None

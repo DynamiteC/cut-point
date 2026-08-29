@@ -318,3 +318,53 @@
 2026.08.29 11:02:04.405921 [ 675075 ] {} <Information> cutpoint_restore_test.raw_playback_events (e8d57acf-a2bf-4cb1-aac1-a3694d099c27): dropAllData: remove format_version.txt, detached, moving and write ahead logs
 2026.08.29 11:02:04.406170 [ 675075 ] {} <Information> cutpoint_restore_test.raw_playback_events (e8d57acf-a2bf-4cb1-aac1-a3694d099c27): dropAllData: removing table directory recursive to cleanup garbage
 2026.08.29 11:02:04.406433 [ 675075 ] {} <Information> DatabaseCatalog: Removing metadata metadata_dropped/cutpoint_restore_test.raw_playback_events.e8d57acf-a2bf-4cb1-aac1-a3694d099c27.sql of dropped table cutpoint_restore_test.raw_playback_events (e8d57acf-a2bf-4cb1-aac1-a3694d099c27)
+2026.08.29 11:36:39.630988 [ 674911 ] {fc8432ee-cf97-472e-ab3d-2c04c73bb0ac} <Error> executeQuery: Code: 164. DB::Exception: default: Cannot execute query in readonly mode. (READONLY) (version 26.8.1.1650 (official build)) (from 127.0.0.1:63962) (in query: CREATE TABLE cutpoint.should_not_exist (x UInt8) ENGINE = Memory), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String&&, int) @ 0x00000001158e8e7c
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000105e38eb0
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x0000000100527b98
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x00000001005276ac
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010052737c
+5. auto bool DB::ContextAccess::checkAccessImplHelper<true, false, false, std::basic_string_view<char, std::char_traits<char>>, String>(std::shared_ptr<DB::Context const> const&, DB::AccessFlags, std::basic_string_view<char, std::char_traits<char>> const&, String const&) const::'lambda'<typename ...$T>(int, FormatStringHelperImpl<String, std::type_identity<$T>::type...>, $T&&...)::operator()<>(int, FormatStringHelperImpl<String, std::type_identity<$T>::type...>, $T&&...) const @ 0x000000010a60cf54
+6. bool DB::ContextAccess::checkAccessImplHelper<true, false, false, std::basic_string_view<char, std::char_traits<char>>, String>(std::shared_ptr<DB::Context const> const&, DB::AccessFlags, std::basic_string_view<char, std::char_traits<char>> const&, String const&) const @ 0x000000010a60c874
+7. bool DB::ContextAccess::checkAccessImplHelper<true, false, false>(std::shared_ptr<DB::Context const> const&, DB::AccessRightsElement const&) const @ 0x000000010a602140
+8. DB::ContextAccess::checkAccess(std::shared_ptr<DB::Context const> const&, DB::AccessRightsElements const&) const @ 0x000000010a5f2c44
+9. DB::Context::checkAccess(DB::AccessRightsElements const&) const @ 0x000000010b6404b4
+10. DB::InterpreterCreateQuery::execute() @ 0x000000010b8725a8
+11. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010bd6f2ec
+12. DB::executeQuery(std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>, DB::WriteBuffer&, std::shared_ptr<DB::Context>, std::function<void (DB::QueryResultDetails const&)>, DB::QueryFlags, std::optional<DB::FormatSettings> const&, std::function<void (DB::IOutputFormat&, String const&, std::shared_ptr<DB::Context const> const&, std::optional<DB::FormatSettings> const&)>, std::function<void ()>, std::function<void ()>) @ 0x000000010bd73fb0
+13. DB::HTTPHandler::processQuery(DB::HTTPServerRequest&, DB::HTMLForm&, DB::HTTPServerResponse&, DB::HTTPHandler::Output&, DB::QueryScope&, StrongTypedef<unsigned long, ProfileEvents::EventTag> const&) @ 0x000000010f5bf5e4
+14. DB::HTTPHandler::handleRequest(DB::HTTPServerRequest&, DB::HTTPServerResponse&, StrongTypedef<unsigned long, ProfileEvents::EventTag> const&) @ 0x000000010f5c4a80
+15. DB::HTTPServerConnection::run() @ 0x000000010f6aab7c
+16. Poco::Net::TCPServerConnection::start() @ 0x0000000115963418
+17. Poco::Net::TCPServerDispatcher::run() @ 0x0000000115963a38
+18. Poco::PooledThread::run() @ 0x0000000115929358
+19. Poco::ThreadImpl::runnableEntry(void*) @ 0x00000001159271a8
+20. _pthread_start @ 0x00000001809f9c58
+21. thread_start @ 0x00000001809f4c1c
+
+2026.08.29 11:36:39.631253 [ 674911 ] {fc8432ee-cf97-472e-ab3d-2c04c73bb0ac} <Error> DynamicQueryHandler: Code: 164. DB::Exception: default: Cannot execute query in readonly mode. (READONLY), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String&&, int) @ 0x00000001158e8e7c
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000105e38eb0
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x0000000100527b98
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x00000001005276ac
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010052737c
+5. auto bool DB::ContextAccess::checkAccessImplHelper<true, false, false, std::basic_string_view<char, std::char_traits<char>>, String>(std::shared_ptr<DB::Context const> const&, DB::AccessFlags, std::basic_string_view<char, std::char_traits<char>> const&, String const&) const::'lambda'<typename ...$T>(int, FormatStringHelperImpl<String, std::type_identity<$T>::type...>, $T&&...)::operator()<>(int, FormatStringHelperImpl<String, std::type_identity<$T>::type...>, $T&&...) const @ 0x000000010a60cf54
+6. bool DB::ContextAccess::checkAccessImplHelper<true, false, false, std::basic_string_view<char, std::char_traits<char>>, String>(std::shared_ptr<DB::Context const> const&, DB::AccessFlags, std::basic_string_view<char, std::char_traits<char>> const&, String const&) const @ 0x000000010a60c874
+7. bool DB::ContextAccess::checkAccessImplHelper<true, false, false>(std::shared_ptr<DB::Context const> const&, DB::AccessRightsElement const&) const @ 0x000000010a602140
+8. DB::ContextAccess::checkAccess(std::shared_ptr<DB::Context const> const&, DB::AccessRightsElements const&) const @ 0x000000010a5f2c44
+9. DB::Context::checkAccess(DB::AccessRightsElements const&) const @ 0x000000010b6404b4
+10. DB::InterpreterCreateQuery::execute() @ 0x000000010b8725a8
+11. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010bd6f2ec
+12. DB::executeQuery(std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>, DB::WriteBuffer&, std::shared_ptr<DB::Context>, std::function<void (DB::QueryResultDetails const&)>, DB::QueryFlags, std::optional<DB::FormatSettings> const&, std::function<void (DB::IOutputFormat&, String const&, std::shared_ptr<DB::Context const> const&, std::optional<DB::FormatSettings> const&)>, std::function<void ()>, std::function<void ()>) @ 0x000000010bd73fb0
+13. DB::HTTPHandler::processQuery(DB::HTTPServerRequest&, DB::HTMLForm&, DB::HTTPServerResponse&, DB::HTTPHandler::Output&, DB::QueryScope&, StrongTypedef<unsigned long, ProfileEvents::EventTag> const&) @ 0x000000010f5bf5e4
+14. DB::HTTPHandler::handleRequest(DB::HTTPServerRequest&, DB::HTTPServerResponse&, StrongTypedef<unsigned long, ProfileEvents::EventTag> const&) @ 0x000000010f5c4a80
+15. DB::HTTPServerConnection::run() @ 0x000000010f6aab7c
+16. Poco::Net::TCPServerConnection::start() @ 0x0000000115963418
+17. Poco::Net::TCPServerDispatcher::run() @ 0x0000000115963a38
+18. Poco::PooledThread::run() @ 0x0000000115929358
+19. Poco::ThreadImpl::runnableEntry(void*) @ 0x00000001159271a8
+20. _pthread_start @ 0x00000001809f9c58
+21. thread_start @ 0x00000001809f4c1c
+ (version 26.8.1.1650 (official build))

@@ -19,7 +19,11 @@ from agent.cutpoint_agent.steps.reporter import build_directors_notes, write_rep
 def test_pipeline_order_is_fixed():
     root = build_root_agent()
     names = [a.name for a in root.sub_agents]
-    assert names == ["analyst", "extractor", "diagnostician", "reporter"]
+    assert names == ["analyst", "validator", "extractor", "diagnostician", "reporter"]
+    # validator must sit immediately after analyst: every later step consumes
+    # analysis_result, and it must be the ClickHouse-verified copy, not the
+    # analyst's transcription.
+    assert names.index("validator") == names.index("analyst") + 1
 
 
 def test_analyst_output_schema_validates():

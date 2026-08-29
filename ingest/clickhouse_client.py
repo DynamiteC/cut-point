@@ -16,6 +16,19 @@ from ingest.errors import MissingCredentialError
 REQUIRED_VARS = ["CLICKHOUSE_HOST", "CLICKHOUSE_USER", "CLICKHOUSE_DATABASE"]
 
 
+def get_readonly_client(database: str | None = None) -> Client:
+    """Client pinned to readonly=1 at the session level.
+
+    The project claims agent-side ClickHouse access is read-only. Routing the
+    agent through mcp-clickhouse made that true by convention and documentation;
+    this makes the server itself refuse a write, so a step that runs a fixed .sql
+    file cannot mutate anything even if the file is wrong.
+    """
+    client = get_ingest_client(database)
+    client.set_client_setting("readonly", 1)
+    return client
+
+
 def get_ingest_client(database: str | None = None) -> Client:
     for var in REQUIRED_VARS:
         if not os.environ.get(var):
