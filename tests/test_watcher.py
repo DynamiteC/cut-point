@@ -130,3 +130,27 @@ def test_a_trailer_with_no_cliffs_never_triggers_a_pipeline_run() -> None:
     # Assert: nothing to diagnose means nothing to spend on
     assert triggered == []
     assert sent == []
+
+
+def test_an_unreachable_database_does_not_ask_pubsub_to_retry_forever(monkeypatch) -> None:
+    """Pub/Sub redelivers on any 5xx. An unreachable database is not something a
+    redelivery can fix, so an escaping exception turned one scheduled tick into
+    an unbounded retry loop that wakes the service and bills for it.
+    """
+    from fastapi.testclient import TestClient
+
+    import services.watcher.main as watcher
+
+    monkeypatch.setenv("CUTPOINT_REQUIRE_AUTH", "false")
+
+    def refuse(*args, **kwargs):
+        raise ConnectionRefusedError("[Errno 111] Connection refused")
+
+    monkeypatch.setattr("ingest.clickhouse_client.get_ingest_client", refuse)
+
+    response = TestClient(watcher.app).post("/pubsub/scan", json={"message": {"data": "e30="}})
+
+    assert response.status_code == 200, "a 5xx here would be retried forever"
+    body = response.json()
+    assert body["status"] == "degraded"
+    assert "ConnectionRefusedError" in body["error"]

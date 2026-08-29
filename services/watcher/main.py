@@ -123,10 +123,42 @@ def pubsub_scan(envelope: dict, caller: str = Depends(verify_google_identity)) -
 
     from ingest.clickhouse_client import get_ingest_client
 
-    client = get_ingest_client()
+    try:
+        client = get_ingest_client()
+    except Exception as exc:  # noqa: BLE001 -- classified and reported below
+        return _degraded("connect", exc)
+
     try:
         triggered = scan(client)
+    except Exception as exc:  # noqa: BLE001 -- classified and reported below
+        return _degraded("scan", exc)
     finally:
         client.close()
+
     print(f"[watcher] scan complete, {len(triggered)} trailer(s) triggered: {triggered}")
     return {"triggered": triggered}
+
+
+def _degraded(stage: str, exc: Exception) -> dict:
+    """Report a failed scan without asking Pub/Sub to retry it forever.
+
+    Pub/Sub redelivers on any 5xx. An unreachable database is not something a
+    redelivery can fix, so letting the exception escape turned one scheduled
+    tick into an unbounded retry loop that wakes the service and bills for it
+    until the message expires.
+
+    This is not swallowing the error: it is recorded in Firestore under
+    cutpoint_watch/_last_error and logged, so a failed scan stays visible. The
+    200 only tells Pub/Sub not to send this same tick again -- the next
+    scheduled tick still runs.
+    """
+    detail = f"{type(exc).__name__}: {exc}"[:500]
+    print(f"[watcher] SCAN FAILED at {stage}: {detail}")
+    try:
+        store.save_job(
+            "_last_error",
+            {"stage": stage, "error": detail, "component": "watcher"},
+        )
+    except Exception as store_exc:  # noqa: BLE001 -- never mask the original
+        print(f"[watcher] could not record the failure: {store_exc}")
+    return {"status": "degraded", "stage": stage, "error": detail}
