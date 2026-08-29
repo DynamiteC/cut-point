@@ -1,8 +1,4 @@
-<!-- This file was generated automatically.
-     Do not edit it: it is likely to be discarded and generated again before it's read next time.
-     Files used to generate this file:
-       /Users/shinigami/Workspace/SS/cut-point/.local-clickhouse/config.xml      -->
-
+<?xml version="1.0"?>
 <!--
   Local, single-node ClickHouse config for CutPoint development.
 
@@ -46,13 +42,13 @@
     <mark_cache_size>536870912</mark_cache_size>
 
     <!-- Backup destination for the native BACKUP/RESTORE statements. The
-         /Users/shinigami/Workspace/SS/cut-point/backups/clickhouse token is replaced with the absolute repo path by
+         BACKUP_DISK_PATH token is replaced with the absolute repo path by
          scripts/clickhouse.sh when it installs this config. -->
     <storage_configuration>
         <disks>
             <backups>
                 <type>local</type>
-                <path>/Users/shinigami/Workspace/SS/cut-point/backups/clickhouse/</path>
+                <path>BACKUP_DISK_PATH/</path>
             </backups>
         </disks>
     </storage_configuration>
@@ -76,7 +72,7 @@
 
     <users>
         <default>
-            <password/>
+            <password></password>
             <networks>
                 <ip>127.0.0.1</ip>
                 <ip>::1</ip>

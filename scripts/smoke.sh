@@ -16,13 +16,22 @@ cleanup() {
             wait "$pid" 2>/dev/null || true
         fi
     done
+    # Only stop ClickHouse if this script started it; leave a pre-existing
+    # developer server alone.
+    if [ "${STARTED_CH:-false}" = "true" ]; then
+        bash "$REPO_ROOT/scripts/clickhouse.sh" down 2>/dev/null || true
+    fi
 }
 trap cleanup EXIT
 
 pass() { echo "PASS: $1"; }
 fail() { echo "FAIL: $1"; exit 1; }
 
-# ---------- 1. Start local ClickHouse ----------
+# ---------- 1+2. Start local ClickHouse and wait for readiness ----------
+# Delegates to scripts/clickhouse.sh, the single source of truth for how this
+# instance is launched (correct `server -- --path` invocation, tracked config,
+# pidfile). The old inline `server --path=` fallback here was rejected by
+# ClickHouse 26.x and is gone.
 CH_DIR="$REPO_ROOT/.local-clickhouse"
 CH_BIN="$CH_DIR/clickhouse"
 
@@ -30,24 +39,14 @@ if [ ! -x "$CH_BIN" ]; then
     fail "ClickHouse binary not found at $CH_BIN"
 fi
 
-if [ -f "$CH_DIR/config.xml" ]; then
-    "$CH_BIN" server --config-file="$CH_DIR/config.xml" &
-else
-    "$CH_BIN" server --path="$CH_DIR/" &
+# Track whether smoke.sh started the server, so cleanup only stops what it owns
+# and does not kill a server the developer already had running.
+STARTED_CH=false
+if [ "$(curl -s 'http://localhost:8123/?query=SELECT+1' 2>/dev/null)" != "1" ]; then
+    bash "$REPO_ROOT/scripts/clickhouse.sh" up || fail "ClickHouse did not become ready"
+    STARTED_CH=true
 fi
-PIDS+=($!)
-
-# ---------- 2. Wait for ClickHouse readiness ----------
-MAX_WAIT=30
-WAITED=0
-until [ "$(curl -s 'http://localhost:8123/?query=SELECT+1' 2>/dev/null)" = "1" ]; do
-    sleep 1
-    WAITED=$((WAITED + 1))
-    if [ $WAITED -ge $MAX_WAIT ]; then
-        fail "ClickHouse did not become ready within ${MAX_WAIT}s"
-    fi
-done
-pass "ClickHouse reachable (SELECT 1) after ${WAITED}s"
+pass "ClickHouse reachable (SELECT 1)"
 
 # ---------- 3. mcp-clickhouse tool listing ----------
 uv run python scripts/mcp_smoke.py > /dev/null 2>&1 \

@@ -93,9 +93,71 @@ def test_extract_missing_video_returns_404():
     assert response.status_code == 404
 
 
-def test_extract_gcs_uri_returns_actionable_error():
+def test_malformed_gcs_uri_is_rejected():
+    # gs:// is now a supported source. A bucket with no object key is not.
     response = client.post(
         "/extract",
-        json={"video_path": "gs://bucket/video.mp4", "start_s": 0, "end_s": 5},
+        json={"video_path": "gs://bucket-only", "start_s": 0, "end_s": 5},
     )
-    assert response.status_code == 501
+    assert response.status_code == 400
+    assert "malformed" in response.json()["detail"]
+
+
+def test_missing_gcs_object_is_a_404_not_a_crash(monkeypatch):
+    class FakeBlob:
+        def exists(self):
+            return False
+
+    class FakeBucket:
+        def blob(self, key):
+            return FakeBlob()
+
+    class FakeClient:
+        def bucket(self, name):
+            return FakeBucket()
+
+    import google.cloud.storage as gcs
+
+    monkeypatch.setattr(gcs, "Client", lambda *a, **k: FakeClient())
+    response = client.post(
+        "/extract",
+        json={"video_path": "gs://bucket/missing.mp4", "start_s": 0, "end_s": 5},
+    )
+    assert response.status_code == 404
+
+
+def test_local_clip_path_is_returned_when_no_bucket_is_configured(monkeypatch):
+    # `make demo` and the tests must keep working with no cloud access at all.
+    monkeypatch.delenv("GCS_BUCKET", raising=False)
+    from services.segment_extractor.main import _upload_clip
+
+    assert _upload_clip(Path("/tmp/x.mp4")) == "/tmp/x.mp4"
+
+
+def test_non_strict_probe_returns_none_instead_of_raising(tmp_path):
+    """The duration-mismatch check must not raise.
+
+    A stream copy that produced an unreadable clip is exactly the case the
+    re-encode fallback exists for; a raising probe escaped past the fallback as
+    a 500 and the fallback could never run.
+    """
+    from services.segment_extractor.main import ffprobe_duration
+
+    corrupt = tmp_path / "corrupt.mp4"
+    corrupt.write_bytes(b"not a video")
+
+    assert ffprobe_duration(str(corrupt), strict=False) is None
+
+
+def test_strict_probe_still_fails_loud_with_an_ffprobe_message(tmp_path):
+    from fastapi import HTTPException
+
+    from services.segment_extractor.main import ffprobe_duration
+
+    corrupt = tmp_path / "corrupt.mp4"
+    corrupt.write_bytes(b"not a video")
+
+    with pytest.raises(HTTPException) as excinfo:
+        ffprobe_duration(str(corrupt), strict=True)
+    assert excinfo.value.status_code == 500
+    assert "ffprobe" in excinfo.value.detail

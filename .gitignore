@@ -10,3 +10,8 @@ dist/
 build/
 .DS_Store
 .local-clickhouse/
+
+# Local ClickHouse backups (snapshots can be hundreds of MB). The tracked
+# config lives in config/clickhouse/ and is committed; the data and its backups
+# are local-only.
+backups/

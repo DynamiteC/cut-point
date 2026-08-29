@@ -1,0 +1,37 @@
+2026.08.29 10:51:02.057542 [ 667440 ] {} <Warning> Context: Maximum number of threads is lower than 30000. There could be problems with handling a lot of simultaneous queries.
+2026.08.29 10:51:02.072618 [ 667440 ] {} <Error> Application: Code: 180. DB::Exception: Settings profile `default` not found. (THERE_IS_NO_PROFILE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String&&, int) @ 0x0000000119f34e7c
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x000000010a484eb0
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x0000000104b73b98
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x0000000104b736ac
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x0000000104b7337c
+5. DB::SettingsProfilesCache::setDefaultProfileName(String const&) @ 0x000000010ecdbd68
+6. DB::Context::setDefaultProfiles(Poco::Util::AbstractConfiguration const&) @ 0x000000010fcc9178
+7. DB::Server::main(std::vector<String, std::allocator<String>> const&) @ 0x000000010aa2773c
+8. Poco::Util::Application::run() @ 0x0000000119fcebbc
+9. DB::Server::run() @ 0x000000010aa1a3e0
+10. mainEntryClickHouseServer(int, char**) @ 0x000000010aa19b08
+11. main @ 0x0000000104b6cbf0
+12. mach_o::Platform::Epoch::fall2025 @ 0x000000018063be00
+ (version 26.8.1.1650 (official build))
+2026.08.29 10:52:18.372265 [ 670008 ] {} <Warning> Context: Maximum number of threads is lower than 30000. There could be problems with handling a lot of simultaneous queries.
+2026.08.29 10:52:18.386138 [ 670008 ] {} <Error> Application: Code: 180. DB::Exception: Settings profile `default` not found. (THERE_IS_NO_PROFILE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String&&, int) @ 0x0000000119c1ce7c
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x000000010a16ceb0
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x000000010485bb98
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x000000010485b6ac
+4. DB::Exception::Exception<String>(int, FormatStringHelperImpl<std::type_identity<String>::type>, String&&) @ 0x000000010485b37c
+5. DB::SettingsProfilesCache::setDefaultProfileName(String const&) @ 0x000000010e9c3d68
+6. DB::Context::setDefaultProfiles(Poco::Util::AbstractConfiguration const&) @ 0x000000010f9b1178
+7. DB::Server::main(std::vector<String, std::allocator<String>> const&) @ 0x000000010a70f73c
+8. Poco::Util::Application::run() @ 0x0000000119cb6bbc
+9. DB::Server::run() @ 0x000000010a7023e0
+10. mainEntryClickHouseServer(int, char**) @ 0x000000010a701b08
+11. main @ 0x0000000104854bf0
+12. mach_o::Platform::Epoch::fall2025 @ 0x000000018063be00
+ (version 26.8.1.1650 (official build))
+2026.08.29 10:53:08.864500 [ 671105 ] {} <Warning> Context: Maximum number of threads is lower than 30000. There could be problems with handling a lot of simultaneous queries.
+2026.08.29 10:53:29.396850 [ 671732 ] {} <Warning> Context: Maximum number of threads is lower than 30000. There could be problems with handling a lot of simultaneous queries.
+2026.08.29 10:55:36.330337 [ 674896 ] {} <Warning> Context: Maximum number of threads is lower than 30000. There could be problems with handling a lot of simultaneous queries.

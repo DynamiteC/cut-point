@@ -4,7 +4,9 @@ ffmpeg stream copy where possible.
 
 from __future__ import annotations
 
+import os
 import subprocess
+import tempfile
 import uuid
 from pathlib import Path
 
@@ -29,7 +31,13 @@ class ExtractResponse(BaseModel):
     duration_s: float
 
 
-def ffprobe_duration(path: str) -> float:
+def ffprobe_duration(path: str, strict: bool = True) -> float | None:
+    """Duration in seconds, or None when strict=False and the file is unreadable.
+
+    The duration-mismatch check that decides whether to re-encode must not raise:
+    a stream copy that produced a corrupt clip is precisely the case the
+    re-encode fallback exists for, and a raising probe turned that into a 500.
+    """
     result = subprocess.run(
         [
             "ffprobe",
@@ -43,20 +51,76 @@ def ffprobe_duration(path: str) -> float:
         ],
         capture_output=True,
         text=True,
-        check=True,
+        check=False,
     )
-    return float(result.stdout.strip())
+    try:
+        return float(result.stdout.strip())
+    except ValueError:
+        if strict:
+            # 500 preserves the documented contract (README error-handling table,
+            # chaos test 3). The change here is that the caller now gets a
+            # specific ffprobe message instead of an unhandled CalledProcessError.
+            raise HTTPException(
+                status_code=500,
+                detail=f"ffprobe could not read a duration from {path}: {result.stderr[-300:]}",
+            ) from None
+        return None
+
+
+def _bucket_name() -> str | None:
+    return os.environ.get("GCS_BUCKET") or None
+
+
+def _split_gs_uri(uri: str) -> tuple[str, str]:
+    without_scheme = uri[len("gs://"):]
+    bucket, _, key = without_scheme.partition("/")
+    if not bucket or not key:
+        raise HTTPException(status_code=400, detail=f"malformed gs:// URI: {uri}")
+    return bucket, key
+
+
+def _download_from_gcs(uri: str) -> Path:
+    """Fetch a source video to a tempfile.
+
+    On Cloud Run there is no data/videos/ in the image, so a local path can
+    never resolve. GCS is how the deployed service gets its source at all.
+    """
+    from google.cloud import storage
+
+    bucket_name, key = _split_gs_uri(uri)
+    blob = storage.Client().bucket(bucket_name).blob(key)
+    if not blob.exists():
+        raise HTTPException(status_code=404, detail=f"source video not found at {uri}")
+    suffix = Path(key).suffix or ".mp4"
+    fd, temp_name = tempfile.mkstemp(suffix=suffix)
+    os.close(fd)
+    blob.download_to_filename(temp_name)
+    return Path(temp_name)
+
+
+def _upload_clip(local_path: Path) -> str:
+    """Return a gs:// URI when a bucket is configured, else the local path.
+
+    The clip is written to this container's ephemeral disk, which the
+    diagnostician (a different Cloud Run service) cannot read. Handing back a
+    local path there meant every extraction was discarded and every diagnosis
+    failed. Local runs keep the plain path so `make demo` is unchanged.
+    """
+    bucket_name = _bucket_name()
+    if not bucket_name:
+        return str(local_path)
+    from google.cloud import storage
+
+    key = f"clips/{local_path.name}"
+    storage.Client().bucket(bucket_name).blob(key).upload_from_filename(
+        str(local_path), content_type="video/mp4"
+    )
+    return f"gs://{bucket_name}/{key}"
 
 
 def resolve_local_path(video_path: str) -> Path:
     if video_path.startswith("gs://"):
-        raise HTTPException(
-            status_code=501,
-            detail=(
-                "gs:// video sources require GCS_BUCKET download support, not implemented "
-                "in this prototype -- provide a local video_path instead"
-            ),
-        )
+        return _download_from_gcs(video_path)
     path = Path(video_path)
     if not path.is_absolute():
         path = REPO_ROOT / video_path
@@ -80,6 +144,15 @@ def health() -> dict:
 @app.post("/extract", response_model=ExtractResponse)
 def extract(req: ExtractRequest) -> ExtractResponse:
     source_path = resolve_local_path(req.video_path)
+    source_is_temp = req.video_path.startswith("gs://")
+    try:
+        return _extract(req, source_path)
+    finally:
+        if source_is_temp:
+            source_path.unlink(missing_ok=True)
+
+
+def _extract(req: ExtractRequest, source_path: Path) -> ExtractResponse:
     source_duration = ffprobe_duration(str(source_path))
 
     start_s = max(0.0, req.start_s)
@@ -110,9 +183,11 @@ def extract(req: ExtractRequest) -> ExtractResponse:
         str(clip_path),
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-    duration_mismatch = (
-        clip_path.exists() and abs(ffprobe_duration(str(clip_path)) - clip_duration) > 0.5
-    )
+    # Non-strict: a stream copy that produced an unreadable clip is exactly what
+    # the re-encode fallback below is for, so an unprobeable file counts as a
+    # mismatch rather than raising past the fallback as a 500.
+    copied_duration = ffprobe_duration(str(clip_path), strict=False) if clip_path.exists() else None
+    duration_mismatch = copied_duration is None or abs(copied_duration - clip_duration) > 0.5
     if result.returncode != 0 or not clip_path.exists() or duration_mismatch:
         # stream copy snaps to the nearest keyframe and can miss the requested
         # window -- fall back to a frame-accurate re-encode.
@@ -136,4 +211,4 @@ def extract(req: ExtractRequest) -> ExtractResponse:
             raise HTTPException(status_code=500, detail=f"ffmpeg failed: {result.stderr[-500:]}")
 
     actual_duration = ffprobe_duration(str(clip_path))
-    return ExtractResponse(clip_path=str(clip_path), duration_s=actual_duration)
+    return ExtractResponse(clip_path=_upload_clip(clip_path), duration_s=actual_duration)

@@ -1,0 +1,34 @@
+# Keep the build context small and never ship secrets or local state into the image.
+.git
+.gitignore
+
+# Secrets: .env must never enter an image layer. Cloud Run env vars are set at
+# deploy time via deploy_all.sh instead.
+.env
+.env.*
+!.env.example
+
+# Local dev environment and caches
+.venv
+.ruff_cache
+.pytest_cache
+__pycache__
+*.pyc
+
+# Local ClickHouse standalone binary and its multi-hundred-MB data dirs
+.local-clickhouse
+access
+preprocessed_configs
+
+# Local run artifacts: reports, clips, jobs, fingerprints. The container writes
+# these to Firestore/GCS in the cloud, and ground_truth.json is COPY'd explicitly.
+data
+!data/ground_truth.json
+
+# Editor / tooling
+.claude
+.kiro
+docs
+submission
+tests
+*.md

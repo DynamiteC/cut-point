@@ -22,6 +22,21 @@ from agent.cutpoint_agent.prompts import diagnostician_prompt
 from agent.cutpoint_agent.schemas import AnalysisResult, Diagnosis, ExtractionResult
 from ingest.errors import MissingCredentialError
 
+
+def _clip_part(clip_path: str) -> types.Part:
+    """Reference the clip by URI in the cloud, by bytes locally.
+
+    The extractor runs as its own Cloud Run service with its own ephemeral disk,
+    so a local path it returns does not exist in this container -- read_bytes on
+    it discarded every extraction and failed every diagnosis. When the extractor
+    is backed by a bucket it returns a gs:// URI, which Vertex reads directly.
+    That also keeps the whole clip out of this process's memory.
+    """
+    if clip_path.startswith("gs://"):
+        return types.Part.from_uri(file_uri=clip_path, mime_type="video/mp4")
+    return types.Part.from_bytes(data=Path(clip_path).read_bytes(), mime_type="video/mp4")
+
+
 DIAGNOSIS_RESPONSE_SCHEMA = {
     "type": "OBJECT",
     "properties": {
@@ -48,8 +63,7 @@ def diagnose_clip(client: genai.Client, model: str, clip_path: str, second: int,
     """Pure, testable diagnosis logic for a single clip. `client` is injectable so
     tests can pass a mock and never touch Vertex AI.
     """
-    video_bytes = Path(clip_path).read_bytes()
-    video_part = types.Part.from_bytes(data=video_bytes, mime_type="video/mp4")
+    video_part = _clip_part(clip_path)
     prompt = diagnostician_prompt(second, drop_pct, cohorts, start_s, end_s)
 
     response = client.models.generate_content(
