@@ -547,7 +547,7 @@ Full reports with charts: [docs/perf/README.md](docs/perf/README.md)
 
 - **Pre-commit check**: Run `make smoke` before every push. It starts ClickHouse, verifies
   all services respond, and runs the pipeline in dry-run mode in under 60 seconds.
-- **Testing**: `uv run pytest -v` runs the full suite (82 tests). Chaos tests validate
+- **Testing**: `uv run pytest -v` runs the full suite (83 tests). Chaos tests validate
   failure modes. Load/stress/soak run as standalone scripts via Makefile targets.
 - **Frontend**: `index.html` is the landing page and `app.html` is the working UI, both
   hosted on GitHub Pages and reading live from the deployed API. The REST facade at

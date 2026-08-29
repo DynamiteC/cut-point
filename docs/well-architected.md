@@ -56,7 +56,7 @@ ClickHouse Cloud has never been exercised.
 | Timeouts | 120s on the Vertex call, 30s on the extractor HTTP call, 10s on ClickHouse connect, 600s Pub/Sub ack deadline covering a full pipeline run. |
 | Bounded retries | A failed scan returns 200 with `status: degraded` rather than a 5xx, because Pub/Sub redelivers on 5xx and an unreachable database is not something a redelivery fixes. Retention is capped at one hour with 60-600s backoff. |
 | Data integrity | Ingest checkpoints carry a fingerprint of the file they belong to, so a regenerated events file cannot cause the loader to skip the head of the new one. |
-| Tested | 82 tests, including four chaos scenarios (ClickHouse unreachable, extractor down, corrupt video, Gemini timeout). |
+| Tested | 83 tests, including four chaos scenarios (ClickHouse unreachable, extractor down, corrupt video, Gemini timeout). |
 
 **Gaps.** No multi-region anything. `--max-instances=1` is a cost choice that is also a
 single point of failure. No dead-letter topic; a permanently poisonous message is dropped when
