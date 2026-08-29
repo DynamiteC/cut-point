@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CutPoint: Director's Notes</title>
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <meta name="description" content="Live Director's Notes from the deployed CutPoint API: where a trailer loses viewers, and what was on screen when they went.">
 <style>
   :root {
@@ -60,8 +61,13 @@
     position: sticky; top: 0; z-index: 20;
   }
   .bar { display: flex; align-items: center; gap: 16px; padding: 18px 0; flex-wrap: wrap; }
-  .logo { font-family: var(--font-display); font-size: 24px; letter-spacing: -0.4px; color: var(--text-dark); }
+  /* One brand lockup, identical to index.html: the mark, then "Cut" in the
+     display serif and "Point" in the accent blue. */
+  .logo { display: flex; align-items: center; gap: 9px; font-family: var(--font-display);
+          font-size: 24px; letter-spacing: -0.4px; color: var(--text-dark);
+          text-decoration: none; }
   .logo em { font-style: normal; color: var(--cta-blue); }
+  .logo .mark { width: 26px; height: 26px; color: var(--text-dark); flex-shrink: 0; }
   .tag {
     font-family: var(--font-mono); font-size: 11px; text-transform: uppercase;
     letter-spacing: 0.08em; color: var(--text-tertiary);
@@ -188,20 +194,31 @@
 
 <header>
   <div class="wrap bar">
-    <span class="logo">Cut<em>Point</em></span>
+    <a class="logo" href="./" aria-label="CutPoint home">
+      <svg class="mark" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+        <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="24" cy="24" r="20.4" stroke-width="2.2"/>
+          <path d="M7.5 15.5 L15 17.6 L23.2 19.4 L23.2 32.2 L31 34.1 L40.5 35" stroke-width="2.9"/>
+        </g>
+        <path d="M23.2 9.4 V13.4 M23.2 38.2 V42.2" fill="none" stroke="currentColor"
+              stroke-width="2.2" stroke-linecap="round" opacity="0.38"/>
+      </svg>
+      <span>Cut<em>Point</em></span>
+    </a>
     <span class="tag">Director's Notes</span>
     <span class="spacer"></span>
     <span class="status"><span class="dot" id="dot"></span><span id="apistate">connecting…</span></span>
+    <a class="src" href="./">How it works</a>
     <a class="src" href="https://github.com/DynamiteC/cut-point">Source</a>
   </div>
 </header>
 
 <div class="wrap hero">
-  <h1>Where the trailer loses them, and what was on screen.</h1>
+  <h1>Find the second people stop watching.</h1>
   <p class="lede">
-    ClickHouse computes where viewers left, per second and per cohort. Gemini 3.5 Flash watches
-    those exact frames and says what happened. This page reads the reports live from the
-    deployed API on Cloud Run.
+    The database finds the exact second when many people leave. Gemini then looks at those
+    frames and says what is on the screen. This page shows the result. It reads the reports
+    live from the service on Google Cloud. Pick a video below.
   </p>
   <div class="picker" id="picker" role="tablist" aria-label="Trailers"></div>
 </div>
@@ -220,15 +237,15 @@
         model working rather than an outage. Reading reports needs no credential, which is why this page
         works.
       </p>
-      <pre><span class="c"># reading is public</span>
+      <pre><span class="c"># anyone can read a report</span>
 curl <span id="curlbase">…</span>/report/demo_001
 
-<span class="c"># running costs money, so it is not</span>
+<span class="c"># starting a run costs money, so it needs an identity</span>
 curl -X POST <span id="curlbase2">…</span>/analyze \
   -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
   -H "content-type: application/json" \
   -d '{"trailer_id":"demo_001"}'</pre>
-      <p style="margin-top:16px">Already have a job id from the pipeline? Track it here.</p>
+      <p style="margin-top:16px">Do you have a job number? Type it here to see the status.</p>
       <div class="row">
         <input type="text" id="jobid" placeholder="job id, e.g. 4f2a9c…" aria-label="Job id">
         <button class="go" id="jobgo">Check status</button>
@@ -240,8 +257,9 @@ curl -X POST <span id="curlbase2">…</span>/analyze \
 
 <footer>
   <div class="wrap">
-    Reports served from Firestore via Cloud Run. Numbers come from ClickHouse; no model produces
-    one. <a href="https://github.com/DynamiteC/cut-point/blob/main/docs/architecture.md">Architecture</a>
+    The reports come from Firestore, through Cloud Run. Every number comes from the database.
+    No model makes a number.
+    <a href="https://github.com/DynamiteC/cut-point/blob/main/docs/architecture.md">How it is built</a>
   </div>
 </footer>
 
@@ -377,10 +395,10 @@ curl -X POST <span id="curlbase2">…</span>/analyze \
       var pw = el("section", "panel");
       var grid = el("div", "prov");
       [
-        [String(v.source_rows), "rows of retention data read", false],
-        [String(v.llm_cliff_count), "numbers produced by a model", true],
-        [String(v.verified_cliff_count), "cliffs computed by ClickHouse", false],
-        [pct(notes.overall_retention_end), "viewers still watching at the end", false]
+        [String(v.source_rows), "rows of watch data read", false],
+        [String(v.llm_cliff_count), "numbers made by a model", true],
+        [String(v.verified_cliff_count), "drops found by the database", false],
+        [pct(notes.overall_retention_end), "people still watching at the end", false]
       ].forEach(function (m) {
         var d = el("div");
         d.appendChild(el("div", "n" + (m[2] ? " zero" : ""), m[0]));
@@ -389,23 +407,25 @@ curl -X POST <span id="curlbase2">…</span>/analyze \
       });
       pw.appendChild(grid);
       pw.appendChild(el("div", "prov-note",
-        "Every figure above was read from ClickHouse over a read-only connection. "
-        + "The model sees frames and writes prose; it never produces a number. "
-        + "That buys provenance and reproducibility, not correctness."));
+        "Every number above comes from the database, read over a connection that cannot "
+        + "change anything. A model looks at frames and writes words. A model never makes a "
+        + "number. This shows you where each number came from. It does not prove the number "
+        + "is right; for that, see the detector tests in the repository."));
       out.appendChild(pw);
     }
 
     var cv = el("section", "panel curve");
-    cv.appendChild(el("h2", null, "Retention"));
+    cv.appendChild(el("h2", null, "How many people keep watching"));
     cv.appendChild(el("div", "sub",
-      "Milestone funnel, clamped monotonically. Dashed lines mark detected cliffs."));
+      "The line shows how many people are left as the video plays. It can only go down. "
+      + "Each dashed line marks a second where many people left at once."));
     cv.appendChild(curve(notes));
     out.appendChild(cv);
 
     var cs = el("section", "panel cliffs");
     cs.appendChild(el("h2", null, notes.cliffs.length
-      ? notes.cliffs.length + " drop-off " + (notes.cliffs.length === 1 ? "cliff" : "cliffs")
-      : "No significant drop-off detected"));
+      ? (notes.cliffs.length === 1 ? "1 drop" : notes.cliffs.length + " drops")
+      : "No clear drop in this video"));
 
     notes.cliffs.forEach(function (c) {
       var row = el("div", "cliff");
@@ -420,7 +440,7 @@ curl -X POST <span id="curlbase2">…</span>/analyze \
       row.appendChild(left);
 
       var right = el("div");
-      [["On screen", c.on_screen], ["Why they left", c.hypothesis]].forEach(function (f) {
+      [["What is on the screen", c.on_screen], ["Why people left", c.hypothesis]].forEach(function (f) {
         if (!f[1]) return;
         var b = el("div", "field");
         b.appendChild(el("div", "k", f[0]));
@@ -466,12 +486,12 @@ curl -X POST <span id="curlbase2">…</span>/analyze \
     var p = el("section", "panel");
     var m = el("div", "msg");
     if (status === 404) {
-      m.appendChild(el("div", "big", "No report for " + id + " yet."));
+      m.appendChild(el("div", "big", "There is no report for " + id + " yet."));
       var d = el("div");
       d.style.marginTop = "8px";
-      d.appendChild(document.createTextNode("The watcher publishes work only when a trailer's cliff set changes. Run "));
+      d.appendChild(document.createTextNode("CutPoint only starts work when the drops in a video change. To make a report now, run "));
       d.appendChild(el("code", null, "make demo"));
-      d.appendChild(document.createTextNode(" locally to generate one."));
+      d.appendChild(document.createTextNode(" on your own machine."));
       m.appendChild(d);
     } else {
       m.appendChild(el("div", "big", "Could not load " + id + "."));

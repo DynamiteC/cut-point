@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="CutPoint">
+  <title>CutPoint</title>
+  <!-- Monoline mark in the language of the source monogram: one uniform stroke
+       weight, angular geometry, a circular enclosure, no fill.
+
+       The shape is the product. A retention line crosses the full width, holds,
+       falls at one exact second, and flattens. The vertical stroke is both the
+       cliff and the cut, and it sits dead centre so the mark stays balanced.
+
+       The line spans nearly edge to edge on purpose: an inset line inside a
+       circle reads as a clock hand at 16px. A full chord reads as a chart. -->
+  <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="24" cy="24" r="20.4" stroke-width="2.2"/>
+    <path d="M7.5 15.5 L15 17.6 L23.2 19.4 L23.2 32.2 L31 34.1 L40.5 35"
+          stroke-width="2.9"/>
+  </g>
+  <!-- The cut marker: the same dashed vertical the retention charts draw
+       through a detected cliff. Kept light so the drop stays the subject. -->
+  <path d="M23.2 9.4 V13.4 M23.2 38.2 V42.2" fill="none" stroke="currentColor"
+        stroke-width="2.2" stroke-linecap="round" opacity="0.38"/>
+</svg>
