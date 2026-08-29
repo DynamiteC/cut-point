@@ -33,6 +33,13 @@
        required for severity/drop indicators in the retention diagnosis. */
     --signal-red: #c1382b;
     --signal-red-subtle: rgba(193, 56, 43, 0.08);
+    /* Chart and severity colours. These were inline hex literals in the demo
+       widget and the severity pills; a design-system audit flagged them as the
+       only values on the page not reachable from :root. */
+    --cta-blue-dark: #144fb0;
+    --sev-low: #a7d9b5;
+    --sev-mid: #f3d98c;
+    --sev-high: #e6a29b;
 
     /* Typography */
     --font-display: Georgia, "Iowan Old Style", "Times New Roman", serif; /* f37Analog fallback */
@@ -249,7 +256,7 @@
     gap: var(--sp-5);
     transition: background-color 0.15s ease;
   }
-  .btn-primary:hover { background: #144fb0; }
+  .btn-primary:hover { background: var(--cta-blue-dark); }
   .btn-secondary {
     background: var(--surface-white);
     border: 1px solid var(--border-default);
@@ -305,9 +312,9 @@
     border-radius: var(--radius-pill);
     border: 1px solid rgba(2, 8, 23, 0.15);
   }
-  .dot-close { background: #e6a29b; }
-  .dot-min { background: #f3d98c; }
-  .dot-max { background: #a7d9b5; }
+  .dot-close { background: var(--sev-high); }
+  .dot-min { background: var(--sev-mid); }
+  .dot-max { background: var(--sev-low); }
   .window-title {
     font-family: var(--font-mono);
     font-size: 0.76rem;
@@ -628,6 +635,26 @@
       max-width: 1240px;
     }
   }
+  /* ---------- Accessibility ----------
+     Added after a design-system audit found neither of these. The page has 11
+     focusable elements and 6 transitions; a keyboard user had only the browser
+     default focus ring, and someone who asks their system for less motion still
+     got all of it. */
+  :where(a, button, [tabindex]):focus-visible {
+    outline: 2px solid var(--cta-blue);
+    outline-offset: 3px;
+    border-radius: var(--radius-sharp);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
 </style>
 </head>
 

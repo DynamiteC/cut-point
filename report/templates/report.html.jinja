@@ -473,6 +473,22 @@
   @media (min-width: 1024px) {
     body { max-width: 1040px; }
   }
+
+    /* Accessibility: the report is a standalone file a reader may open on its
+       own, so it carries its own focus and motion rules rather than inheriting
+       any from a host page. */
+    :where(a, button, [tabindex]):focus-visible {
+      outline: 2px solid var(--cta-blue, #1863dc);
+      outline-offset: 3px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
 </style>
 </head>
 <body>
