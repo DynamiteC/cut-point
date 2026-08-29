@@ -111,6 +111,12 @@ class ReporterAgent(BaseAgent):
         notes = build_directors_notes(
             analysis.trailer_id, title, duration_s, analysis, extraction, diagnoses
         )
+        # The narrator writes the editor-facing paragraph from the verified
+        # numbers. If it failed or produced nothing, keep the deterministic
+        # template build_directors_notes already produced.
+        narrated = (ctx.session.state.get("executive_summary") or "").strip()
+        if narrated:
+            notes = notes.model_copy(update={"executive_summary": narrated})
         validation = ctx.session.state.get("validation_report")
         if validation:
             notes = notes.model_copy(

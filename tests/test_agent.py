@@ -19,20 +19,27 @@ from agent.cutpoint_agent.steps.reporter import build_directors_notes, write_rep
 def test_pipeline_order_is_fixed():
     root = build_root_agent()
     names = [a.name for a in root.sub_agents]
-    assert names == ["analyst", "validator", "extractor", "diagnostician", "reporter"]
-    # validator must sit immediately after analyst: every later step consumes
-    # analysis_result, and it must be the ClickHouse-verified copy, not the
-    # analyst's transcription.
-    assert names.index("validator") == names.index("analyst") + 1
+    assert names == ["analyst", "extractor", "diagnostician", "narrator", "reporter"]
+    # The narrator writes prose from findings, so it must run after the
+    # diagnoses exist and before the report is assembled.
+    assert names.index("narrator") > names.index("diagnostician")
+    assert names.index("narrator") < names.index("reporter")
 
 
-def test_analyst_output_schema_validates():
+def test_no_model_can_put_a_number_in_the_report():
     root = build_root_agent()
-    # The analyst is wrapped so its failure cannot end the run; the LlmAgent
-    # that actually carries the schema is the wrapped one.
-    analyst = root.sub_agents[0].analyst
-    assert analyst.output_schema is AnalysisResult
-    assert analyst.output_key == "analysis_result"
+    # The analyst is deterministic: it reads ClickHouse directly and holds no
+    # model at all. That is the point -- no model can put a number in the report.
+    analyst = root.sub_agents[0]
+    assert not hasattr(analyst, "model"), "the analyst must not carry a model"
+    assert getattr(analyst, "output_schema", None) is None
+
+    # The only LlmAgent in the pipeline writes prose, never structured numbers.
+    narrator = root.sub_agents[3].narrator
+    assert narrator.output_key == "executive_summary"
+    assert narrator.output_schema is None, (
+        "forcing structured output through this model is what truncated mid-JSON before"
+    )
 
     sample = {
         "trailer_id": "demo_001",
@@ -190,16 +197,15 @@ def test_one_failing_clip_does_not_discard_the_others(tmp_path):
     assert "TimeoutError" in failures[0]["error"]
 
 
-async def test_a_failing_analyst_does_not_end_the_run(monkeypatch):
-    """The validator re-derives every number from ClickHouse, so the pipeline
-    does not need the analyst to succeed. It needs the analyst not to take the
-    run down with it. The observed failure was the model padding its structured
-    output with whitespace and truncating mid-JSON.
+async def test_a_failing_narrator_does_not_end_the_run(monkeypatch):
+    """The report must exist even if the model will not cooperate. The reporter
+    falls back to the deterministic summary, so a narrator failure costs prose,
+    not the run.
     """
-    from agent.cutpoint_agent.steps.analyst import ResilientAnalystAgent
+    from agent.cutpoint_agent.steps.narrator import NarratorAgent
 
-    class ExplodingAnalyst:
-        name = "analyst_llm"
+    class ExplodingNarrator:
+        name = "narrator_llm"
 
         async def run_async(self, ctx):
             raise ValueError("Invalid JSON: EOF while parsing a value")
@@ -213,14 +219,42 @@ async def test_a_failing_analyst_does_not_end_the_run(monkeypatch):
         def __init__(self):
             self.session = FakeSession()
 
-    agent = ResilientAnalystAgent.model_construct(
-        name="analyst", analyst=ExplodingAnalyst()
-    )
+    agent = NarratorAgent.model_construct(name="narrator", narrator=ExplodingNarrator())
 
     events = [e async for e in agent._run_async_impl(FakeCtx())]
 
     assert len(events) == 1
     delta = events[0].actions.state_delta
-    assert "EOF while parsing" in delta["analyst_error"], "the failure must stay visible"
-    assert delta["analysis_result"]["trailer_id"] == "demo_001"
-    assert delta["analysis_result"]["cliffs"] == [], "validator fills these from the database"
+    assert "EOF while parsing" in delta["narrator_error"], "the failure must stay visible"
+    assert "executive_summary" not in delta, "the reporter's deterministic summary stands"
+
+
+def test_narrator_summary_that_cites_a_nonexistent_cliff_is_rejected():
+    """The first version of this step named the state keys instead of
+    interpolating them, so the model received no data and confidently invented a
+    CGI explosion and a viewer count that were nowhere in the diagnoses.
+    Grounding the prompt fixed the cause; this catches the next instance.
+    """
+    from agent.cutpoint_agent.steps.narrator import summary_is_grounded
+
+    detected = {23, 48, 69}
+
+    ok, _ = summary_is_grounded(
+        "The worst moment is at second 48, a static establishing shot.", detected
+    )
+    assert ok
+
+    ok, why = summary_is_grounded(
+        "A poorly rendered CGI explosion at second 12 loses the 18-24 cohort.", detected
+    )
+    assert not ok
+    assert "12" in why
+
+
+def test_grounding_check_is_case_insensitive_and_ignores_other_numbers():
+    from agent.cutpoint_agent.steps.narrator import summary_is_grounded
+
+    ok, _ = summary_is_grounded(
+        "At Second 48 retention falls 13.5% across 2 cohorts.", {48}
+    )
+    assert ok, "percentages and cohort counts are not cliff citations"

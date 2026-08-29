@@ -1,108 +1,96 @@
-"""Step 1: analyst -- executes the fixed SQL analysis templates via mcp-clickhouse
-and returns a structured AnalysisResult. See TASK.md section 7.
+"""Step 1: analyst -- deterministic retention analytics.
 
-The LlmAgent is wrapped so that its failure cannot end the run. Step 2, the
-validator, re-derives every number in AnalysisResult directly from ClickHouse,
-so the pipeline does not need this step to succeed -- it needs it to not take
-the run down with it. Observed failure: the model pads its structured output
-with whitespace and truncates mid-JSON, which raised out of SequentialAgent and
-killed a run whose numbers were going to be replaced anyway.
+This step used to be an LlmAgent that queried ClickHouse through mcp-clickhouse
+and transcribed the results into AnalysisResult. Measurement killed that design:
+on a real run it reported a cliff at second 2 that does not exist in the
+database and missed all three that do, and separately it padded its structured
+output with whitespace and truncated mid-JSON. A validator step existed purely to
+overrule it, which meant every field it produced was discarded.
+
+So the numbers are now read directly. No model sits between the database and the
+report. The model still has a job in this pipeline -- steps 4 and 5 -- but it is
+perception and language, never arithmetic.
+
+The historical comparison is preserved in validator.validate() and its tests,
+because "we measured our own model and removed it from the numeric path" is the
+reason this pipeline looks the way it does.
 """
 
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 
-from google.adk.agents import BaseAgent, LlmAgent
+from google.adk.agents import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events import Event
 from google.adk.events.event_actions import EventActions
-from google.genai import types
 
 from agent.cutpoint_agent import obs
-from agent.cutpoint_agent.config import gemini_model
-from agent.cutpoint_agent.mcp import clickhouse_toolset
-from agent.cutpoint_agent.prompts import ANALYST_INSTRUCTION
-from agent.cutpoint_agent.schemas import AnalysisResult
+from agent.cutpoint_agent.schemas import AnalysisResult, ValidationReport
+from agent.cutpoint_agent.steps.validator import (
+    EmptyAnalyticsError,
+    query_cliffs,
+    query_funnel,
+    query_retention_end,
+    source_row_count,
+)
 
 
-class ResilientAnalystAgent(BaseAgent):
-    """Runs the LlmAgent analyst and absorbs its failure.
+def analyze(client, trailer_id: str) -> tuple[AnalysisResult, ValidationReport]:
+    """Read every number the report needs, straight from ClickHouse."""
+    rows = source_row_count(client, trailer_id)
+    if rows == 0:
+        raise EmptyAnalyticsError(
+            f"no retention data for trailer_id={trailer_id!r} in "
+            "cutpoint.mv_second_viewers. Refusing to emit a report claiming no "
+            "cliffs were found -- load the data first (make generate-data load)."
+        )
 
-    On failure it writes an empty AnalysisResult so the pipeline continues; the
-    validator then fills in cliffs, milestone_funnel and overall_retention_end
-    from the database. The error is recorded in state as analyst_error rather
-    than swallowed, so a degraded run is visible instead of silent.
-    """
-
-    analyst: LlmAgent
-
-    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
-        trailer_id = ctx.session.state.get("trailer_id", "")
-        try:
-            async for event in self.analyst.run_async(ctx):
-                yield event
-        except Exception as exc:  # noqa: BLE001 -- recorded below, never fatal
-            detail = f"{type(exc).__name__}: {exc}"[:500]
-            obs.warning(
-                "analyst degraded, continuing on database values only",
-                step="analyst", error=detail, trailer_id=trailer_id,
-            )
-            yield Event(
-                author=self.name,
-                actions=EventActions(
-                    state_delta={
-                        "analyst_error": detail,
-                        "analysis_result": AnalysisResult(
-                            trailer_id=trailer_id,
-                            overall_retention_end=0.0,
-                            milestone_funnel={},
-                            cliffs=[],
-                        ).model_dump(mode="json"),
-                    }
-                ),
-            )
-            return
-
-        if not ctx.session.state.get("analysis_result"):
-            # Completed without producing output. Same treatment.
-            yield Event(
-                author=self.name,
-                actions=EventActions(
-                    state_delta={
-                        "analyst_error": "analyst produced no analysis_result",
-                        "analysis_result": AnalysisResult(
-                            trailer_id=trailer_id,
-                            overall_retention_end=0.0,
-                            milestone_funnel={},
-                            cliffs=[],
-                        ).model_dump(mode="json"),
-                    }
-                ),
-            )
-
-
-def build_analyst_agent() -> ResilientAnalystAgent:
-    return ResilientAnalystAgent(name="analyst", analyst=_build_llm_analyst())
-
-
-def _build_llm_analyst() -> LlmAgent:
-    return LlmAgent(
-        name="analyst_llm",
-        model=gemini_model(),
-        instruction=ANALYST_INSTRUCTION,
-        # Query 1 returns thousands of per-second rows. Left unbounded the model
-        # rendered them as a table inside a JSON string and ran out of output
-        # tokens mid-string, killing the step on invalid JSON. Capping alone made
-        # it worse: on a thinking model the reasoning tokens draw from the same
-        # budget, so an 8192 cap was spent thinking and the answer truncated at
-        # column 50. Give the answer real room and keep thinking short -- this
-        # step is mechanical transcription, not a reasoning problem.
-        generate_content_config=types.GenerateContentConfig(
-            max_output_tokens=32768,
-            thinking_config=types.ThinkingConfig(thinking_budget=1024),
-        ),
-        tools=[clickhouse_toolset()],
-        output_schema=AnalysisResult,
-        output_key="analysis_result",
+    cliffs = query_cliffs(client, trailer_id)
+    analysis = AnalysisResult(
+        trailer_id=trailer_id,
+        overall_retention_end=query_retention_end(client, trailer_id) or 0.0,
+        milestone_funnel=query_funnel(client, trailer_id),
+        cliffs=cliffs,
     )
+    provenance = ValidationReport(
+        verified=True,
+        source_rows=rows,
+        llm_cliff_count=0,
+        verified_cliff_count=len(cliffs),
+        corrected=[],
+    )
+    return analysis, provenance
+
+
+class AnalystAgent(BaseAgent):
+    async def _run_async_impl(self, ctx: InvocationContext) -> AsyncGenerator[Event, None]:
+        trailer_id = ctx.session.state["trailer_id"]
+
+        from ingest.clickhouse_client import get_readonly_client
+
+        client = get_readonly_client()
+        try:
+            analysis, provenance = analyze(client, trailer_id)
+        finally:
+            client.close()
+
+        obs.info(
+            "analytics read",
+            trailer_id=trailer_id,
+            source_rows=provenance.source_rows,
+            cliffs=len(analysis.cliffs),
+        )
+        yield Event(
+            author=self.name,
+            actions=EventActions(
+                state_delta={
+                    "analysis_result": analysis.model_dump(mode="json"),
+                    "validation_report": provenance.model_dump(mode="json"),
+                }
+            ),
+        )
+
+
+def build_analyst_agent() -> AnalystAgent:
+    return AnalystAgent(name="analyst")

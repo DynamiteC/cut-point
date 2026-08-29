@@ -368,3 +368,59 @@
 20. _pthread_start @ 0x00000001809f9c58
 21. thread_start @ 0x00000001809f4c1c
  (version 26.8.1.1650 (official build))
+2026.08.29 14:25:16.167167 [ 674911 ] {68a8d72a-156d-476f-9669-2e1e091d6e69} <Error> executeQuery: Code: 60. DB::Exception: Unknown table expression identifier 'system.query_log' in scope SELECT query FROM system.query_log WHERE (query LIKE '%demo_001%') AND (query NOT LIKE '%query_log%') LIMIT 10. (UNKNOWN_TABLE) (version 26.8.1.1650 (official build)) (from 127.0.0.1:50598) (in query: SELECT query FROM system.query_log WHERE query LIKE '%demo_001%' AND query NOT LIKE '%query_log%' LIMIT 10 FORMAT Native), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String&&, int) @ 0x00000001158e8e7c
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000105e38eb0
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x0000000100527b98
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x00000001005276ac
+4. DB::Exception::Exception<String const&, String>(int, FormatStringHelperImpl<std::type_identity<String const&>::type, std::type_identity<String>::type>, String const&, String&&) @ 0x00000001010d7e00
+5. DB::QueryAnalyzer::initializeQueryJoinTreeNode(std::shared_ptr<DB::IQueryTreeNode>&, DB::IdentifierResolveScope&) @ 0x000000010afec814
+6. DB::QueryAnalyzer::resolveQuery(std::shared_ptr<DB::IQueryTreeNode> const&, DB::IdentifierResolveScope&) @ 0x000000010afc4648
+7. DB::QueryAnalyzer::resolve(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::ITableExpressionNode> const&, std::shared_ptr<DB::Context const>) @ 0x000000010afc3724
+8. DB::QueryAnalysisPass::run(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::Context const>) @ 0x000000010afc2c20
+9. DB::QueryTreePassManager::run(std::shared_ptr<DB::IQueryTreeNode>&) @ 0x000000010aee6818
+10. DB::buildQueryTreeAndRunPasses(boost::intrusive_ptr<DB::IAST> const&, DB::SelectQueryOptions const&, std::shared_ptr<DB::Context const> const&, std::shared_ptr<DB::IStorage> const&) @ 0x000000010b904098
+11. DB::InterpreterSelectQueryAnalyzer::InterpreterSelectQueryAnalyzer(boost::intrusive_ptr<DB::IAST> const&, std::shared_ptr<DB::Context const> const&, DB::SelectQueryOptions const&, std::vector<String, std::allocator<String>> const&, DB::ActionsDAG const*) @ 0x000000010b90222c
+12. std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> std::__function::__policy_func<std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> (DB::InterpreterFactory::Arguments const&)>::__call_func[abi:fqe220101]<DB::registerInterpreterSelectQueryAnalyzer(DB::InterpreterFactory&)::$_0>(std::__function::__policy_storage const*, DB::InterpreterFactory::Arguments const&) @ 0x000000010b909f6c
+13. DB::InterpreterFactory::get(boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::Context>, DB::SelectQueryOptions const&) @ 0x000000010b8a9e98
+14. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010bd6ed3c
+15. DB::executeQuery(std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>, DB::WriteBuffer&, std::shared_ptr<DB::Context>, std::function<void (DB::QueryResultDetails const&)>, DB::QueryFlags, std::optional<DB::FormatSettings> const&, std::function<void (DB::IOutputFormat&, String const&, std::shared_ptr<DB::Context const> const&, std::optional<DB::FormatSettings> const&)>, std::function<void ()>, std::function<void ()>) @ 0x000000010bd73fb0
+16. DB::HTTPHandler::processQuery(DB::HTTPServerRequest&, DB::HTMLForm&, DB::HTTPServerResponse&, DB::HTTPHandler::Output&, DB::QueryScope&, StrongTypedef<unsigned long, ProfileEvents::EventTag> const&) @ 0x000000010f5bf5e4
+17. DB::HTTPHandler::handleRequest(DB::HTTPServerRequest&, DB::HTTPServerResponse&, StrongTypedef<unsigned long, ProfileEvents::EventTag> const&) @ 0x000000010f5c4a80
+18. DB::HTTPServerConnection::run() @ 0x000000010f6aab7c
+19. Poco::Net::TCPServerConnection::start() @ 0x0000000115963418
+20. Poco::Net::TCPServerDispatcher::run() @ 0x0000000115963a38
+21. Poco::PooledThread::run() @ 0x0000000115929358
+22. Poco::ThreadImpl::runnableEntry(void*) @ 0x00000001159271a8
+23. _pthread_start @ 0x00000001809f9c58
+24. thread_start @ 0x00000001809f4c1c
+
+2026.08.29 14:25:16.167863 [ 674911 ] {68a8d72a-156d-476f-9669-2e1e091d6e69} <Error> DynamicQueryHandler: Code: 60. DB::Exception: Unknown table expression identifier 'system.query_log' in scope SELECT query FROM system.query_log WHERE (query LIKE '%demo_001%') AND (query NOT LIKE '%query_log%') LIMIT 10. (UNKNOWN_TABLE), Stack trace (when copying this message, always include the lines below):
+
+0. Poco::Exception::Exception(String&&, int) @ 0x00000001158e8e7c
+1. DB::Exception::Exception(DB::Exception::MessageMasked&&, int, bool) @ 0x0000000105e38eb0
+2. DB::Exception::Exception(String&&, int, String, bool) @ 0x0000000100527b98
+3. DB::Exception::Exception(PreformattedMessage&&, int) @ 0x00000001005276ac
+4. DB::Exception::Exception<String const&, String>(int, FormatStringHelperImpl<std::type_identity<String const&>::type, std::type_identity<String>::type>, String const&, String&&) @ 0x00000001010d7e00
+5. DB::QueryAnalyzer::initializeQueryJoinTreeNode(std::shared_ptr<DB::IQueryTreeNode>&, DB::IdentifierResolveScope&) @ 0x000000010afec814
+6. DB::QueryAnalyzer::resolveQuery(std::shared_ptr<DB::IQueryTreeNode> const&, DB::IdentifierResolveScope&) @ 0x000000010afc4648
+7. DB::QueryAnalyzer::resolve(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::ITableExpressionNode> const&, std::shared_ptr<DB::Context const>) @ 0x000000010afc3724
+8. DB::QueryAnalysisPass::run(std::shared_ptr<DB::IQueryTreeNode>&, std::shared_ptr<DB::Context const>) @ 0x000000010afc2c20
+9. DB::QueryTreePassManager::run(std::shared_ptr<DB::IQueryTreeNode>&) @ 0x000000010aee6818
+10. DB::buildQueryTreeAndRunPasses(boost::intrusive_ptr<DB::IAST> const&, DB::SelectQueryOptions const&, std::shared_ptr<DB::Context const> const&, std::shared_ptr<DB::IStorage> const&) @ 0x000000010b904098
+11. DB::InterpreterSelectQueryAnalyzer::InterpreterSelectQueryAnalyzer(boost::intrusive_ptr<DB::IAST> const&, std::shared_ptr<DB::Context const> const&, DB::SelectQueryOptions const&, std::vector<String, std::allocator<String>> const&, DB::ActionsDAG const*) @ 0x000000010b90222c
+12. std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> std::__function::__policy_func<std::unique_ptr<DB::IInterpreter, std::default_delete<DB::IInterpreter>> (DB::InterpreterFactory::Arguments const&)>::__call_func[abi:fqe220101]<DB::registerInterpreterSelectQueryAnalyzer(DB::InterpreterFactory&)::$_0>(std::__function::__policy_storage const*, DB::InterpreterFactory::Arguments const&) @ 0x000000010b909f6c
+13. DB::InterpreterFactory::get(boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::Context>, DB::SelectQueryOptions const&) @ 0x000000010b8a9e98
+14. DB::executeQueryImpl(char const*, char const*, std::shared_ptr<DB::Context>, DB::QueryFlags, DB::QueryProcessingStage::Enum, std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>&, boost::intrusive_ptr<DB::IAST>&, std::shared_ptr<DB::ImplicitTransactionControlExecutor>, std::function<void ()>, DB::QueryResultDetails&) @ 0x000000010bd6ed3c
+15. DB::executeQuery(std::unique_ptr<DB::ReadBuffer, std::default_delete<DB::ReadBuffer>>, DB::WriteBuffer&, std::shared_ptr<DB::Context>, std::function<void (DB::QueryResultDetails const&)>, DB::QueryFlags, std::optional<DB::FormatSettings> const&, std::function<void (DB::IOutputFormat&, String const&, std::shared_ptr<DB::Context const> const&, std::optional<DB::FormatSettings> const&)>, std::function<void ()>, std::function<void ()>) @ 0x000000010bd73fb0
+16. DB::HTTPHandler::processQuery(DB::HTTPServerRequest&, DB::HTMLForm&, DB::HTTPServerResponse&, DB::HTTPHandler::Output&, DB::QueryScope&, StrongTypedef<unsigned long, ProfileEvents::EventTag> const&) @ 0x000000010f5bf5e4
+17. DB::HTTPHandler::handleRequest(DB::HTTPServerRequest&, DB::HTTPServerResponse&, StrongTypedef<unsigned long, ProfileEvents::EventTag> const&) @ 0x000000010f5c4a80
+18. DB::HTTPServerConnection::run() @ 0x000000010f6aab7c
+19. Poco::Net::TCPServerConnection::start() @ 0x0000000115963418
+20. Poco::Net::TCPServerDispatcher::run() @ 0x0000000115963a38
+21. Poco::PooledThread::run() @ 0x0000000115929358
+22. Poco::ThreadImpl::runnableEntry(void*) @ 0x00000001159271a8
+23. _pthread_start @ 0x00000001809f9c58
+24. thread_start @ 0x00000001809f4c1c
+ (version 26.8.1.1650 (official build))

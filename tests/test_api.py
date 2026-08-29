@@ -16,6 +16,9 @@ client = TestClient(app)
 def mock_pipeline_and_data(tmp_path, monkeypatch):
     # api/auth.py fails closed: auth is on unless explicitly disabled.
     monkeypatch.setenv("CUTPOINT_REQUIRE_AUTH", "false")
+    # The daily spend counter is persistent state. Without redirecting it the
+    # suite consumed the real budget and later runs got 429 instead of 200.
+    monkeypatch.setattr("agent.cutpoint_agent.store.BUDGET_DIR", tmp_path / "budget")
     fake_ground_truth = {"demo_001": {"duration_s": 90, "cliffs": []}}
     fake_gt_path = tmp_path / "ground_truth.json"
     fake_gt_path.write_text(json.dumps(fake_ground_truth))
