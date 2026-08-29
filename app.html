@@ -300,12 +300,18 @@ curl -X POST <span id="curlbase2">…</span>/analyze \
      it as a curve point made the line rise at the exact moment viewers left. */
   function curve(notes) {
     var W = 900, H = 240, PAD = 34;
+    // Guard every field. This page is the hosted project URL, and an
+    // unguarded dereference on a report shape we did not expect renders a blank
+    // page with the reason only in the console. index.html already guarded; this
+    // did not.
+    var mf = notes.milestone_funnel || {};
+    var cliffs = notes.cliffs || [];
     var order = [
       ["", 0, 1],
-      ["25%", 0.25, notes.milestone_funnel.reached_25pct],
-      ["50%", 0.50, notes.milestone_funnel.reached_50pct],
-      ["75%", 0.75, notes.milestone_funnel.reached_75pct],
-      ["end", 1.00, notes.milestone_funnel.completed]
+      ["25%", 0.25, mf.reached_25pct],
+      ["50%", 0.50, mf.reached_50pct],
+      ["75%", 0.75, mf.reached_75pct],
+      ["end", 1.00, mf.completed]
     ];
     var pts = [], ceil = 1;
     order.forEach(function (o) {
@@ -320,7 +326,7 @@ curl -X POST <span id="curlbase2">…</span>/analyze \
     svg.setAttribute("role", "img");
     svg.setAttribute("aria-label",
       "Retention curve. Ends at " + pct(notes.overall_retention_end) +
-      ". " + notes.cliffs.length + " cliffs detected.");
+      ". " + cliffs.length + " cliffs detected.");
 
     var X = function (fx) { return PAD + fx * (W - PAD * 2); };
     var Y = function (v) { return PAD + (1 - v) * (H - PAD * 2); };
@@ -338,7 +344,7 @@ curl -X POST <span id="curlbase2">…</span>/analyze \
     });
 
     // cliff markers, drawn behind the line
-    notes.cliffs.forEach(function (c) {
+    cliffs.forEach(function (c) {
       var fx = notes.duration_s ? c.second / notes.duration_s : 0;
       var l = document.createElementNS(ns, "line");
       l.setAttribute("x1", X(fx)); l.setAttribute("x2", X(fx));
@@ -428,11 +434,12 @@ curl -X POST <span id="curlbase2">…</span>/analyze \
     out.appendChild(cv);
 
     var cs = el("section", "panel cliffs");
-    cs.appendChild(el("h2", null, notes.cliffs.length
-      ? (notes.cliffs.length === 1 ? "1 drop" : notes.cliffs.length + " drops")
+    var list = notes.cliffs || [];
+    cs.appendChild(el("h2", null, list.length
+      ? (list.length === 1 ? "1 drop" : list.length + " drops")
       : "No clear drop in this video"));
 
-    notes.cliffs.forEach(function (c) {
+    list.forEach(function (c) {
       var row = el("div", "cliff");
 
       var left = el("div");
@@ -490,7 +497,10 @@ curl -X POST <span id="curlbase2">…</span>/analyze \
     out.textContent = "";
     var p = el("section", "panel");
     var m = el("div", "msg");
-    if (status === 404) {
+    if (status === "render") {
+      m.appendChild(el("div", "big", "The report for " + id + " could not be displayed."));
+      m.appendChild(el("div", null, "The data came back, but this page could not draw it."));
+    } else if (status === 404) {
       m.appendChild(el("div", "big", "There is no report for " + id + " yet."));
       var d = el("div");
       d.style.marginTop = "8px";
@@ -514,7 +524,16 @@ curl -X POST <span id="curlbase2">…</span>/analyze \
     location.hash = id;
     loading();
     get("/report/" + encodeURIComponent(id))
-      .then(renderReport)
+      .then(function (notes) {
+        try {
+          renderReport(notes);
+        } catch (err) {
+          // A render failure must not leave a blank page. Say so, and keep the
+          // reason in the console for whoever is debugging.
+          console.error("render failed", err);
+          empty(id, "render");
+        }
+      })
       .catch(function (e) { empty(id, e.status); });
   }
 
