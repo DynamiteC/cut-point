@@ -201,6 +201,8 @@ COMMON_ENV="${COMMON_ENV}@@CUTPOINT_ANALYZE_TOPIC=${ANALYZE_TOPIC}"
 # arbitrary audience, so audience alone still let a stranger run the paid
 # pipeline. The allowlist is what actually authorizes.
 COMMON_ENV="${COMMON_ENV}@@CUTPOINT_ALLOWED_INVOKERS=${PUSH_SA},${RUNTIME_SA}"
+COMMON_ENV="${COMMON_ENV}@@CUTPOINT_MAX_ANALYSES_PER_DAY=${CUTPOINT_MAX_ANALYSES_PER_DAY:-25}"
+COMMON_ENV="${COMMON_ENV}@@CUTPOINT_MAX_CONCURRENT_PIPELINES=${CUTPOINT_MAX_CONCURRENT_PIPELINES:-2}"
 COMMON_ENV="${COMMON_ENV}@@CLICKHOUSE_HOST=${CLICKHOUSE_HOST:-}"
 COMMON_ENV="${COMMON_ENV}@@CLICKHOUSE_PORT=${CLICKHOUSE_PORT:-8443}"
 COMMON_ENV="${COMMON_ENV}@@CLICKHOUSE_USER=${CLICKHOUSE_USER:-default}"
@@ -348,6 +350,17 @@ if ! exists gcloud scheduler jobs describe "${SCHEDULER_JOB}" --project "${PROJE
         --schedule "${SCHEDULE}" \
         --topic "${SCAN_TOPIC}" \
         --message-body '{"trigger":"scheduled-scan"}'
+fi
+
+# Created PAUSED on purpose. An enabled */15 tick wakes the watcher 96 times a
+# day forever, and every wake is a Cloud Run start plus a ClickHouse query --
+# spend with no one watching. Resume it only for a live demonstration:
+#   gcloud scheduler jobs resume ${SCHEDULER_JOB} --location ${REGION}
+# Set CUTPOINT_ENABLE_SCHEDULE=1 to leave it running after deploy.
+if [[ "${CUTPOINT_ENABLE_SCHEDULE:-}" == "1" ]]; then
+    run gcloud scheduler jobs resume "${SCHEDULER_JOB}" --project "${PROJECT}" --location "${REGION}"
+else
+    run gcloud scheduler jobs pause "${SCHEDULER_JOB}" --project "${PROJECT}" --location "${REGION}"
 fi
 
 echo

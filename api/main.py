@@ -50,6 +50,11 @@ ANALYZE_TOPIC = os.environ.get("CUTPOINT_ANALYZE_TOPIC", "cutpoint-analyze")
 _MAX_CONCURRENT = int(os.environ.get("CUTPOINT_MAX_CONCURRENT_PIPELINES", "2"))
 _pipeline_slots = threading.Semaphore(_MAX_CONCURRENT)
 
+# Hard daily ceiling on paid runs. The concurrency cap bounds how fast money is
+# spent; this bounds how much. Judging needs a handful of runs, so the default is
+# deliberately low and raising it is an explicit deploy-time decision.
+_MAX_PER_DAY = int(os.environ.get("CUTPOINT_MAX_ANALYSES_PER_DAY", "25"))
+
 app = FastAPI(title="CutPoint API")
 
 # The state-changing routes authenticate with a bearer token, not a cookie, so a
@@ -99,6 +104,13 @@ def _run_pipeline_guarded(trailer_id: str) -> dict:
             detail=f"at capacity ({_MAX_CONCURRENT} concurrent analyses); retry shortly",
         )
     try:
+        day = datetime.now(UTC).strftime("%Y-%m-%d")
+        used = store.bump_daily_analyses(day)
+        if used > _MAX_PER_DAY:
+            raise HTTPException(
+                status_code=429,
+                detail=f"daily analysis budget of {_MAX_PER_DAY} reached; resets at 00:00 UTC",
+            )
         return get_pipeline_runner()(trailer_id)
     finally:
         _pipeline_slots.release()

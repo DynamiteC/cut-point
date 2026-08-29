@@ -89,3 +89,25 @@ def test_public_job_status_never_leaks_internals(monkeypatch, tmp_path) -> None:
     assert "error" not in body, "raw exception text must not reach an anonymous caller"
     assert "requested_by" not in body, "caller identity must not be public"
     assert "db.internal" not in str(body)
+
+
+def test_daily_budget_stops_runaway_spend(monkeypatch, tmp_path) -> None:
+    """The concurrency cap bounds how FAST money is spent; this bounds how MUCH.
+    Every run is ClickHouse queries plus a Gemini video inference per clip.
+    """
+    from agent.cutpoint_agent import store
+    from api import main
+
+    monkeypatch.setenv("CUTPOINT_REQUIRE_AUTH", "false")
+    monkeypatch.setenv("CUTPOINT_STORE", "local")
+    monkeypatch.setattr(store, "BUDGET_DIR", tmp_path / "budget")
+    monkeypatch.setattr(main, "_MAX_PER_DAY", 2)
+    monkeypatch.setattr(main.app.state, "pipeline_runner", lambda t: {"report_path": "x"}, raising=False)
+
+    codes = [
+        client.post("/analyze", json={"trailer_id": "demo_001"}).status_code
+        for _ in range(4)
+    ]
+
+    assert codes[:2] == [200, 200], "runs within budget must succeed"
+    assert codes[2:] == [429, 429], "runs past budget must be refused, not billed"

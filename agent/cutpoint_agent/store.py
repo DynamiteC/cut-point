@@ -94,6 +94,35 @@ def load_job(job_id: str) -> dict[str, Any] | None:
     return _get(JOBS_COLLECTION, JOBS_DIR, job_id)
 
 
+BUDGET_COLLECTION = "cutpoint_budget"
+BUDGET_DIR = REPO_ROOT / "data" / "budget"
+
+
+def bump_daily_analyses(day: str) -> int:
+    """Increment and return today's completed-analysis count.
+
+    Every pipeline run costs real money: ClickHouse queries, an ffmpeg
+    extraction per cliff and a Gemini video inference per clip. This is the
+    backstop that bounds the bill if anything upstream -- a scheduler
+    misconfiguration, a redelivery loop, an authorised-but-runaway caller --
+    starts triggering runs faster than intended.
+    """
+    _check_id(day)
+    if using_firestore():
+        from google.cloud import firestore
+
+        ref = _client().collection(BUDGET_COLLECTION).document(day)
+        ref.set({"analyses": firestore.Increment(1)}, merge=True)
+        snap = ref.get()
+        return int((snap.to_dict() or {}).get("analyses", 0))
+
+    path = _local_path(BUDGET_DIR, day)
+    current = json.loads(path.read_text())["analyses"] if path.exists() else 0
+    current += 1
+    path.write_text(json.dumps({"analyses": current}))
+    return current
+
+
 def save_watch_error(payload: dict[str, Any]) -> None:
     """Record a failed scan in the watch collection, not the jobs collection.
 
