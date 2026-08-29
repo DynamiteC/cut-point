@@ -505,7 +505,6 @@ Full reports with charts: [docs/perf/README.md](docs/perf/README.md)
 | Document | Purpose |
 |----------|---------|
 | [docs/architecture.md](docs/architecture.md) | System architecture, component boundaries, and pipeline sequence flow |
-| [docs/DEVPOST_SUBMISSION.md](docs/DEVPOST_SUBMISSION.md) | Submission dossier: what was built, how, and what was learned |
 | [deploy/deploy_all.sh](deploy/deploy_all.sh) | Every Google Cloud resource this project creates, in order |
 | [docs/perf/README.md](docs/perf/README.md) | Performance, soak, and resilience test suite overview |
 | [docs/perf/load-report.md](docs/perf/load-report.md) | ClickHouse & REST API load test benchmarks with charts |
