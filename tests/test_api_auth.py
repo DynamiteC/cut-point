@@ -58,5 +58,5 @@ def test_pubsub_push_handler_rejects_unsigned_delivery() -> None:
 
 def test_read_only_endpoints_stay_public() -> None:
     # The GitHub Pages UI fetches these cross-origin with no credential.
-    assert client.get("/healthz").status_code == 200
+    assert client.get("/health").status_code == 200
     assert client.get("/trailers").status_code == 200

@@ -22,8 +22,18 @@ preprocessed_configs
 
 # Local run artifacts: reports, clips, jobs, fingerprints. The container writes
 # these to Firestore/GCS in the cloud, and ground_truth.json is COPY'd explicitly.
-data
-!data/ground_truth.json
+# Excluded by name rather than "data" plus a "!data/ground_truth.json" negation.
+# gcloud run deploy --source generates its own ignore rules from this file when
+# no .gcloudignore exists, and the re-include never survived that translation:
+# the build failed with "stat data/ground_truth.json: file does not exist" even
+# though the file is present. Listing the heavy directories needs no negation.
+# 2.0G events, 396M clips, 8.6M videos stay out; the 4K ground_truth.json ships.
+data/events
+data/clips
+data/videos
+data/reports
+data/jobs
+data/watch
 
 # Editor / tooling
 .claude

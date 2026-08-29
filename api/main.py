@@ -5,7 +5,7 @@ Public, read-only:
   GET  /report/{trailer_id}      -> DirectorsNotes JSON
   GET  /report/{trailer_id}/html -> rendered HTML
   GET  /jobs/{job_id}            -> job status
-  GET  /healthz                  -> liveness
+  GET  /health                   -> liveness
 
 Authenticated, state-changing (each call runs the full paid pipeline):
   POST /analyze {trailer_id}     -> runs synchronously -> {report_id}
@@ -104,8 +104,12 @@ def _run_pipeline_guarded(trailer_id: str) -> dict:
         _pipeline_slots.release()
 
 
-@app.get("/healthz")
-def healthz() -> dict:
+# /health, not /healthz: Google's frontend intercepts /healthz on Cloud Run and
+# answers 404 itself without ever routing to the container (the 404 carries no
+# x-cloud-trace-context and no "server: Google Frontend" header, unlike a real
+# response from this app). Verified live against the deployed revision.
+@app.get("/health")
+def health() -> dict:
     return {"status": "ok"}
 
 

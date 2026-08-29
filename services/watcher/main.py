@@ -103,8 +103,12 @@ def scan(client, publish=publish_analysis) -> list[dict]:
     return triggered
 
 
-@app.get("/healthz")
-def healthz() -> dict:
+# /health, not /healthz: Google's frontend intercepts /healthz on Cloud Run and
+# answers 404 itself without ever routing to the container (the 404 carries no
+# x-cloud-trace-context and no "server: Google Frontend" header, unlike a real
+# response from this app). Verified live against the deployed revision.
+@app.get("/health")
+def health() -> dict:
     return {"status": "ok"}
 
 

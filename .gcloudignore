@@ -1,0 +1,43 @@
+# gcloud run deploy --source decides what to upload from THIS file. Without it
+# gcloud falls back to .gitignore, which excludes all of data/ -- so
+# data/ground_truth.json never reached the build context and the image build
+# failed at "COPY data/ground_truth.json" even though the file exists locally.
+# .dockerignore is not consulted for the upload, only by the daemon afterwards.
+
+.git
+.gitignore
+
+# Secrets never enter the upload. Cloud Run env vars are set by deploy_all.sh.
+.env
+.env.*
+
+# Local dev environment and caches
+.venv
+.ruff_cache
+.pytest_cache
+__pycache__
+*.pyc
+
+# Local ClickHouse standalone binary and its data directories
+.local-clickhouse
+access
+preprocessed_configs
+backups
+server.log
+server.err.log
+
+# Heavy local artifacts. data/ground_truth.json is deliberately NOT excluded:
+# the API reads it to serve GET /trailers.
+data/events
+data/clips
+data/videos
+data/reports
+data/jobs
+data/watch
+
+# Not needed at runtime
+.claude
+.kiro
+docs
+submission
+tests

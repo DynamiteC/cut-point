@@ -86,6 +86,18 @@ exists() {
     "$@" >/dev/null 2>&1
 }
 
+case "${CLICKHOUSE_HOST:-}" in
+    ""|localhost|127.0.0.1|0.0.0.0)
+        echo "ERROR: CLICKHOUSE_HOST is '${CLICKHOUSE_HOST:-<unset>}'." >&2
+        echo "A Cloud Run container cannot reach your machine's localhost, so the" >&2
+        echo "watcher would fail on every scan and the analyst on every request." >&2
+        echo "Point CLICKHOUSE_HOST at a reachable instance (ClickHouse Cloud) first," >&2
+        echo "or set CUTPOINT_ALLOW_LOCAL_CH=1 to deploy the plumbing anyway." >&2
+        [[ "${CUTPOINT_ALLOW_LOCAL_CH:-}" == "1" ]] || exit 2
+        echo "CUTPOINT_ALLOW_LOCAL_CH=1 set; continuing with an unreachable database." >&2
+        ;;
+esac
+
 echo "=== CutPoint deploy ==="
 echo "    project : ${PROJECT}"
 echo "    region  : ${REGION}"
@@ -201,12 +213,20 @@ echo "--- deploy ${API_SERVICE} ---"
 API_ENV="${COMMON_ENV}@@APP_MODULE=api.main:app@@GCS_BUCKET=${GCS_BUCKET}"
 API_ENV="${API_ENV}@@CUTPOINT_ALLOWED_ORIGINS=${CUTPOINT_ALLOWED_ORIGINS:-*}"
 [[ -n "${SECRET_ENV}" ]] && API_ENV="${API_ENV}@@${SECRET_ENV}"
+# --allow-unauthenticated is deliberate and is NOT the finding that was fixed.
+# Platform-level auth rejects a request before any application code runs, which
+# would also block GET /report and GET /trailers -- the endpoints the static UI
+# must read with no credential. The paid endpoints are guarded in the
+# application instead: POST /analyze, POST /jobs and POST /pubsub/analyze all
+# require a verified Google-signed OIDC token (api/auth.py, fails closed), and
+# concurrent pipelines are capped and shed with 429. The watcher below keeps
+# platform-level auth because only Pub/Sub ever calls it.
 run gcloud run deploy "${API_SERVICE}" \
     --project "${PROJECT}" \
     --region "${REGION}" \
     --source "${REPO_ROOT}" \
     --service-account "${RUNTIME_SA}" \
-    --no-allow-unauthenticated \
+    --allow-unauthenticated \
     --port 8080 \
     --memory 1Gi \
     --cpu 1 \
