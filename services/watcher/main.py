@@ -97,7 +97,15 @@ def scan(client, publish=publish_analysis) -> list[dict]:
         job_id = uuid.uuid4().hex
         store.save_job(job_id, {"job_id": job_id, "trailer_id": trailer_id,
                                 "status": "queued", "triggered_by": "watcher"})
-        publish(trailer_id, job_id)
+        try:
+            publish(trailer_id, job_id)
+        except Exception:
+            # The job document is written before the publish. Without this the
+            # job sat at "queued" forever and nothing would ever pick it up.
+            store.save_job(job_id, {"job_id": job_id, "trailer_id": trailer_id,
+                                    "status": "failed", "triggered_by": "watcher",
+                                    "detail": "could not be queued for processing"})
+            raise
         store.set_fingerprint(trailer_id, current)
         triggered.append({"trailer_id": trailer_id, "job_id": job_id, "cliffs": len(cliffs)})
     return triggered

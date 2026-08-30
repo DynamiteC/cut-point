@@ -100,6 +100,15 @@ def test_a_failed_clip_diagnosis_does_not_destroy_the_report():
 
     assert [c.second for c in notes.cliffs] == [10], "the surviving cliff must be reported"
 
+    # Skipping silently was worse than the KeyError it replaced: the report
+    # named second 10 as the most damaging moment and claimed "1 cliff(s)
+    # total", when the database says the worst is second 20 at 30%.
+    assert notes.diagnosis_failures, "the undiagnosed cliff must be recorded"
+    assert notes.diagnosis_failures[0]["second"] == 20
+    assert "1 of 2" in notes.executive_summary, (
+        "the summary must not present partial coverage as complete"
+    )
+
 
 def test_public_clip_reference_never_leaks_a_local_path():
     """GET /report/{id} is public. An absolute local path there published the
@@ -110,3 +119,22 @@ def test_public_clip_reference_never_leaks_a_local_path():
 
     assert public_clip_ref("/Users/someone/work/cut-point/data/clips/x.mp4") == "x.mp4"
     assert public_clip_ref("gs://a-bucket/clips/x.mp4") == "gs://a-bucket/clips/x.mp4"
+
+
+def test_the_rendered_report_discloses_undiagnosed_cliffs():
+    """A reader of the Markdown or the HTML must be able to see that a detected
+    cliff has no explanation. The data existed but no surface rendered it.
+    """
+    import json
+    from pathlib import Path as _P
+
+    from agent.cutpoint_agent.schemas import DirectorsNotes
+    from report.render import render_html, render_markdown
+
+    raw = json.loads((_P(__file__).parent / "fixtures" / "directors_notes_fixture.json").read_text())
+    raw["diagnosis_failures"] = [{"second": 63, "drop_pct": 0.18, "reason": "no diagnosis"}]
+    notes = DirectorsNotes.model_validate(raw)
+
+    for rendered in (render_markdown(notes), render_html(notes)):
+        assert "could not be diagnosed" in rendered
+        assert "63" in rendered

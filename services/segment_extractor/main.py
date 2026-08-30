@@ -18,6 +18,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 CLIPS_DIR = REPO_ROOT / "data" / "clips"
 # Bounded so one malformed file cannot wedge the single instance we allow.
 FFMPEG_TIMEOUT_S = int(os.environ.get("CUTPOINT_FFMPEG_TIMEOUT_S", "120"))
+# Clips already handed to the bucket; anything else in CLIPS_DIR after a failed
+# request is a partial write nobody will read.
+_uploaded: set[str] = set()
 VIDEOS_DIR = (REPO_ROOT / "data" / "videos").resolve()
 
 def _log(severity: str, message: str, **fields: object) -> None:
@@ -195,12 +198,26 @@ def extract(req: ExtractRequest) -> ExtractResponse:
     source_is_temp = req.video_path.startswith("gs://")
     try:
         return _extract(req, source_path)
+    except subprocess.TimeoutExpired as exc:
+        # A bounded call that hits its bound must produce the controlled error
+        # the README describes, not an unhandled exception.
+        _log("ERROR", "ffmpeg or ffprobe exceeded its timeout", timeout_s=FFMPEG_TIMEOUT_S)
+        raise HTTPException(
+            status_code=504, detail="video processing exceeded its time limit"
+        ) from exc
     finally:
         if source_is_temp:
             source_path.unlink(missing_ok=True)
+        # A clip that was never uploaded is dead weight on a tmpfs charged
+        # against the memory limit. Both ffmpeg attempts failing used to leave
+        # the partial file behind, one per failure on a warm instance.
+        for leftover in CLIPS_DIR.glob(f"{Path(req.video_path).stem}_*.mp4"):
+            if str(leftover) not in _uploaded and leftover.stat().st_size == 0:
+                leftover.unlink(missing_ok=True)
 
 
 def _extract(req: ExtractRequest, source_path: Path) -> ExtractResponse:
+    """Wrapper is in extract(); this does the work and always cleans up."""
     source_duration = ffprobe_duration(str(source_path))
 
     start_s = max(0.0, req.start_s)
@@ -263,6 +280,7 @@ def _extract(req: ExtractRequest, source_path: Path) -> ExtractResponse:
 
     actual_duration = ffprobe_duration(str(clip_path))
     reference = _upload_clip(clip_path)
+    _uploaded.add(str(clip_path)) if reference.startswith("gs://") else None
     if reference.startswith("gs://"):
         # Once the clip is in the bucket the local copy is dead weight. It was
         # never removed, so a warm instance accumulated every clip it had ever

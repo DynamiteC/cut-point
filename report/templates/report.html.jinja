@@ -489,6 +489,12 @@
         transition-duration: 0.01ms !important;
       }
     }
+
+    .coverage-note {
+      background: var(--signal-red-subtle, rgba(193, 56, 43, 0.08));
+      border-left: 3px solid var(--signal-red, #c1382b);
+      padding: 12px 16px; margin: 16px 0; font-size: 0.9rem;
+    }
 </style>
 </head>
 <body>
@@ -531,6 +537,14 @@
       <span>// Executive Summary</span>
     </div>
     <p class="summary">{{ notes.executive_summary }}</p>
+
+{% if notes.diagnosis_failures %}
+<div class="coverage-note">
+  <strong>Coverage:</strong> {{ notes.diagnosis_failures | length }} detected cliff(s) could not be diagnosed:
+  {% for u in notes.diagnosis_failures %}second {{ u.second }}{% if not loop.last %}, {% endif %}{% endfor %}.
+  The drop is real; the explanation is missing.
+</div>
+{% endif %}
   </section>
 
   <!-- Funnel Milestone Grid -->

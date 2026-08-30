@@ -9,6 +9,12 @@
 
 {{ notes.executive_summary }}
 
+{% if notes.diagnosis_failures %}
+> **Coverage:** {{ notes.diagnosis_failures | length }} detected cliff(s) could not be diagnosed:
+> {% for u in notes.diagnosis_failures %}second {{ u.second }}{% if not loop.last %}, {% endif %}{% endfor %}.
+> The drop is real; the explanation is missing.
+{% endif %}
+
 ## Milestone Funnel
 
 {% for milestone, fraction in notes.milestone_funnel.items() -%}

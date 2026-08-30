@@ -90,3 +90,8 @@ class DirectorsNotes(BaseModel):
     # than trusted from the analyst's transcription. Optional so existing
     # fixtures and reports stay loadable.
     validation: ValidationReport | None = None
+    # Cliffs the database found that no diagnosis covers, usually because the
+    # model call for that clip failed. Skipping them silently let the report
+    # name the wrong second as worst and understate the total. Optional so
+    # existing fixtures and published reports stay loadable.
+    diagnosis_failures: list[dict] = Field(default_factory=list)

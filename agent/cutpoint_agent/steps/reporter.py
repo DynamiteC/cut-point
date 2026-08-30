@@ -52,14 +52,46 @@ def build_recommendation(cliff_second: int, hypothesis: str, severity: int) -> R
     )
 
 
-def build_executive_summary(trailer_id: str, cliffs: list[CliffFinding]) -> str:
+def build_executive_summary(
+    trailer_id: str, cliffs: list[CliffFinding], detected_total: int | None = None
+) -> str:
+    """The count and the superlative must reflect what the DATABASE found.
+
+    Computing them over the diagnosed subset meant a single failed clip produced
+    a confident, wrong headline: with cliffs at seconds 10 (20%) and 20 (30%),
+    a timeout on second 20 yielded "loses the most viewers at second 10 ...
+    1 cliff(s) total", when the worst is second 20 at 30%.
+    """
+    total = len(cliffs) if detected_total is None else detected_total
     if not cliffs:
+        if total:
+            return (
+                f"{trailer_id}: {total} retention cliff(s) detected, but none could be "
+                "diagnosed. See the undiagnosed list below."
+            )
         return f"{trailer_id}: no significant retention cliffs detected."
     worst = max(cliffs, key=lambda c: c.drop_pct)
+    complete = len(cliffs) == total
+    # The superlative is only true across the whole detected set. With a cliff
+    # undiagnosed, a bigger drop may sit in the part we could not explain, so the
+    # claim is narrowed rather than left quietly false.
+    lead = (
+        f"{trailer_id} loses the most viewers at second {worst.second}"
+        if complete
+        else f"{trailer_id}: of the cliffs that could be explained, the worst is second {worst.second}"
+    )
+    coverage = (
+        f"{len(cliffs)} cliff(s) total flagged for recut review."
+        if complete
+        else (
+            f"{len(cliffs)} of {total} detected cliff(s) diagnosed; a larger drop may sit "
+            "among the undiagnosed ones listed below."
+        )
+    )
     return (
-        f"{trailer_id} loses the most viewers at second {worst.second} "
+        f"{lead} "
         f"({worst.drop_pct * 100:.1f}% drop among {', '.join(worst.affected_cohorts)}): "
-        f"{worst.hypothesis} {len(cliffs)} cliff(s) total flagged for recut review."
+        f"{worst.hypothesis} {coverage}"
     )
 
 
@@ -75,6 +107,7 @@ def build_directors_notes(
     clip_by_second = {c.second: c for c in extraction.clips}
 
     findings: list[CliffFinding] = []
+    undiagnosed: list[dict] = []
     for cliff in analysis.cliffs:
         # Step 3 deliberately contains a per-clip failure and returns the
         # diagnoses it did get. Subscripting here threw KeyError on the first
@@ -84,6 +117,13 @@ def build_directors_notes(
         diagnosis = diagnosis_by_second.get(cliff.second)
         clip = clip_by_second.get(cliff.second)
         if diagnosis is None or clip is None:
+            # Recorded, not swallowed. Skipping silently presented partial
+            # coverage as complete.
+            undiagnosed.append({
+                "second": cliff.second,
+                "drop_pct": cliff.drop_pct,
+                "reason": "no diagnosis" if diagnosis is None else "no clip",
+            })
             continue
         findings.append(
             CliffFinding(
@@ -109,7 +149,8 @@ def build_directors_notes(
         overall_retention_end=analysis.overall_retention_end,
         milestone_funnel=analysis.milestone_funnel,
         cliffs=findings,
-        executive_summary=build_executive_summary(trailer_id, findings),
+        executive_summary=build_executive_summary(trailer_id, findings, len(analysis.cliffs)),
+        diagnosis_failures=undiagnosed,
     )
 
 
