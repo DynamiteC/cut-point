@@ -50,11 +50,20 @@ def verify_google_identity(authorization: str | None = Header(default=None)) -> 
     from google.auth.transport import requests as google_requests
     from google.oauth2 import id_token
 
+    # An unset CUTPOINT_AUDIENCE silently disabled the audience check, so a
+    # token minted for any other service would have been accepted on signature
+    # alone. deploy_all.sh always sets it, but a guard that depends on remembering
+    # to set an environment variable is not a guard. In cloud mode its absence is
+    # now a refusal rather than a downgrade.
+    audience = os.environ.get("CUTPOINT_AUDIENCE") or None
+    if audience is None and os.environ.get("K_SERVICE"):
+        raise HTTPException(
+            status_code=500,
+            detail="server misconfigured: CUTPOINT_AUDIENCE is required in a deployment",
+        )
     try:
         claims = id_token.verify_oauth2_token(
-            token,
-            google_requests.Request(),
-            audience=os.environ.get("CUTPOINT_AUDIENCE") or None,
+            token, google_requests.Request(), audience=audience
         )
     except Exception as exc:  # any verification failure is a 401, never a 500
         raise HTTPException(status_code=401, detail="invalid identity token") from exc

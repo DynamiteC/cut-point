@@ -16,6 +16,8 @@ from pydantic import BaseModel, Field
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 CLIPS_DIR = REPO_ROOT / "data" / "clips"
+# Bounded so one malformed file cannot wedge the single instance we allow.
+FFMPEG_TIMEOUT_S = int(os.environ.get("CUTPOINT_FFMPEG_TIMEOUT_S", "120"))
 VIDEOS_DIR = (REPO_ROOT / "data" / "videos").resolve()
 
 def _log(severity: str, message: str, **fields: object) -> None:
@@ -70,6 +72,11 @@ def ffprobe_duration(path: str, strict: bool = True) -> float | None:
         capture_output=True,
         text=True,
         check=False,
+        # A truncated or malformed mp4 can send ffprobe into a long or
+        # non-terminating decode. The caller gives up at 30s and retries, while
+        # this instance stays blocked, so a bad file could wedge the only
+        # instance max-instances=1 allows.
+        timeout=FFMPEG_TIMEOUT_S,
     )
     try:
         return float(result.stdout.strip())
@@ -128,7 +135,13 @@ def _download_from_gcs(uri: str) -> Path:
     suffix = Path(key).suffix or ".mp4"
     fd, temp_name = tempfile.mkstemp(suffix=suffix)
     os.close(fd)
-    blob.download_to_filename(temp_name)
+    try:
+        blob.download_to_filename(temp_name)
+    except Exception:
+        # A reset partway through left the partial file behind, on a tmpfs
+        # charged against the container's memory limit.
+        Path(temp_name).unlink(missing_ok=True)
+        raise
     return Path(temp_name)
 
 
@@ -217,7 +230,8 @@ def _extract(req: ExtractRequest, source_path: Path) -> ExtractResponse:
         "make_zero",
         str(clip_path),
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False,
+                            timeout=FFMPEG_TIMEOUT_S)
     # Non-strict: a stream copy that produced an unreadable clip is exactly what
     # the re-encode fallback below is for, so an unprobeable file counts as a
     # mismatch rather than raising past the fallback as a 500.
@@ -241,10 +255,18 @@ def _extract(req: ExtractRequest, source_path: Path) -> ExtractResponse:
             "aac",
             str(clip_path),
         ]
-        result = subprocess.run(cmd_reencode, capture_output=True, text=True, check=False)
+        result = subprocess.run(cmd_reencode, capture_output=True, text=True, check=False,
+                                timeout=FFMPEG_TIMEOUT_S)
         if result.returncode != 0:
             _log("ERROR", "ffmpeg failed", stderr=result.stderr[-500:])
             raise HTTPException(status_code=500, detail="ffmpeg failed; see server logs")
 
     actual_duration = ffprobe_duration(str(clip_path))
-    return ExtractResponse(clip_path=_upload_clip(clip_path), duration_s=actual_duration)
+    reference = _upload_clip(clip_path)
+    if reference.startswith("gs://"):
+        # Once the clip is in the bucket the local copy is dead weight. It was
+        # never removed, so a warm instance accumulated every clip it had ever
+        # cut on a tmpfs charged against its 512Mi limit. Local runs keep theirs,
+        # because there the path IS the reference the pipeline uses next.
+        clip_path.unlink(missing_ok=True)
+    return ExtractResponse(clip_path=reference, duration_s=actual_duration)

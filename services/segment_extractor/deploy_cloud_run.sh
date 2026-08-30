@@ -11,6 +11,13 @@ SERVICE_NAME="cutpoint-segment-extractor"
 REGION="${GCP_REGION:-us-central1}"
 PROJECT="${GOOGLE_CLOUD_PROJECT:?set GOOGLE_CLOUD_PROJECT in .env}"
 
+# The service ran as the default compute account with no GCS_BUCKET, so it had
+# broader permissions than it needs and no bucket to read a source video from or
+# write a clip to. Both are set here now: the same runtime identity the rest of
+# the plane uses, and the bucket its reads are confined to.
+RUNTIME_SA="${RUNTIME_SA:-cutpoint-runtime@${PROJECT}.iam.gserviceaccount.com}"
+GCS_BUCKET="${GCS_BUCKET:-${PROJECT}-cutpoint-media}"
+
 DRY_RUN=false
 if [[ "${1:-}" == "--dry-run" ]]; then
     DRY_RUN=true
@@ -24,7 +31,9 @@ CMD=(gcloud run deploy "$SERVICE_NAME" \
     --port 8081 \
     --memory 512Mi \
     --min-instances 0 \
-    --max-instances 1)
+    --max-instances 1 \
+    --service-account "$RUNTIME_SA" \
+    --set-env-vars "GCS_BUCKET=${GCS_BUCKET}")
 
 echo "Would run: ${CMD[*]}"
 

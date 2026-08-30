@@ -131,10 +131,9 @@ def _run_pipeline_guarded(trailer_id: str) -> dict:
     run_id = obs.new_run_id()
     obs.info("pipeline start", trailer_id=trailer_id, run_id=run_id)
     try:
-        # Reserve before running, so concurrent callers cannot both pass the
-        # check, but refund a reservation the pipeline never actually spent.
-        # Otherwise a refused or failed run consumed budget and a run of
-        # transient failures could lock out legitimate work for the day.
+        # Reserve before running, so two concurrent callers cannot both pass the
+        # check. Only a rejection refunds, because only a rejection spends
+        # nothing.
         day = datetime.now(UTC).strftime("%Y-%m-%d")
         reserved = store.bump_daily_analyses(day)
         if reserved > _MAX_PER_DAY:
@@ -146,8 +145,14 @@ def _run_pipeline_guarded(trailer_id: str) -> dict:
         try:
             result = get_pipeline_runner()(trailer_id)
         except Exception as exc:
-            store.bump_daily_analyses(day, delta=-1)
-            obs.error("pipeline failed", trailer_id=trailer_id,
+            # Deliberately NOT refunded. A run that fails at the diagnostician
+            # has already paid for the ClickHouse queries, the ffmpeg
+            # extractions and every Gemini call before the one that broke.
+            # Refunding it made the ceiling soft on precisely the case it exists
+            # to bound: a repeating failure could spend without limit, because
+            # every attempt gave its budget back. Only the over-budget rejection
+            # above is refunded, because that path does no work.
+            obs.error("pipeline failed", trailer_id=trailer_id, budget_kept=reserved,
                       error=f"{type(exc).__name__}: {exc}"[:300])
             raise
         obs.info("pipeline complete", trailer_id=trailer_id, budget_used=reserved)
@@ -194,7 +199,18 @@ def enqueue_job(req: AnalyzeRequest, caller: str = Depends(verify_google_identit
         "created_at": datetime.now(UTC).isoformat(),
     }
     store.save_job(job_id, job)
-    _publish(req.trailer_id, job_id)
+    try:
+        _publish(req.trailer_id, job_id)
+    except Exception as exc:
+        # The job document is written before the publish. If the publish fails,
+        # nothing will ever pick the work up, and the job sat at "queued"
+        # forever with no way for a poller to tell the difference between
+        # waiting and abandoned.
+        store.save_job(job_id, {**job, "status": "failed",
+                                "detail": "could not be queued for processing"})
+        obs.error("publish failed", job_id=job_id, trailer_id=req.trailer_id,
+                  error=f"{type(exc).__name__}: {exc}"[:300])
+        raise HTTPException(status_code=502, detail="could not queue the analysis") from exc
     return JobResponse(job_id=job_id, status="queued")
 
 

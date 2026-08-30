@@ -271,9 +271,26 @@ curl -X POST <span id="curlbase2">…</span>/analyze \
 (function () {
   "use strict";
 
-  // Override with ?api=... when pointing this page at a local server.
-  var API = new URLSearchParams(location.search).get("api")
-    || "https://cutpoint-api-nlfe4x5pnq-uc.a.run.app";
+  // ?api= exists so the page can be pointed at a local server during
+  // development. Unrestricted, it also meant anyone could share
+  // ...app.html?api=https://attacker.example and have attacker-authored text
+  // render inside our page, under our name, with the status dot reading
+  // "API live". Restricted to the real service and localhost.
+  var DEFAULT_API = "https://cutpoint-api-nlfe4x5pnq-uc.a.run.app";
+  var API = (function () {
+    var requested = new URLSearchParams(location.search).get("api");
+    if (!requested) return DEFAULT_API;
+    try {
+      var u = new URL(requested);
+      var ok = u.origin === DEFAULT_API
+        || u.hostname === "localhost" || u.hostname === "127.0.0.1";
+      if (ok) return u.origin;
+      console.warn("ignoring ?api=" + requested + ": not an allowed origin");
+    } catch (e) {
+      console.warn("ignoring malformed ?api=");
+    }
+    return DEFAULT_API;
+  })();
 
   var $ = function (id) { return document.getElementById(id); };
   var el = function (tag, cls, txt) {
@@ -287,10 +304,25 @@ curl -X POST <span id="curlbase2">…</span>/analyze \
   $("curlbase").textContent = API;
   $("curlbase2").textContent = API;
 
+  // Cloud Run scales to zero, so the first visitor after an idle period waits
+  // for a cold start. Unbounded, the page simply sat there. Bounded, a slow
+  // start becomes a stated message instead of an unexplained wait.
+  var FETCH_TIMEOUT_MS = 20000;
+
   function get(path) {
-    return fetch(API + path, { headers: { accept: "application/json" } }).then(function (r) {
+    var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var timer = ctrl && setTimeout(function () { ctrl.abort(); }, FETCH_TIMEOUT_MS);
+    var opts = { headers: { accept: "application/json" } };
+    if (ctrl) opts.signal = ctrl.signal;
+    return fetch(API + path, opts).then(function (r) {
+      if (timer) clearTimeout(timer);
       if (!r.ok) { var e = new Error("HTTP " + r.status); e.status = r.status; throw e; }
       return r.json();
+    }, function (err) {
+      if (timer) clearTimeout(timer);
+      var e = new Error(err && err.name === "AbortError" ? "timeout" : "network");
+      e.status = 0;
+      throw e;
     });
   }
 

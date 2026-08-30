@@ -175,7 +175,11 @@ fi
 # 4. Pub/Sub topics
 # ---------------------------------------------------------------------------
 echo "--- pubsub topics ---"
-for topic in "${SCAN_TOPIC}" "${ANALYZE_TOPIC}"; do
+# A dead-letter topic. Without one, a message the pipeline cannot process is
+# redelivered until retention expires rather than being set aside, so one
+# poisonous message becomes days of paid retries.
+DEAD_TOPIC="cutpoint-dead-letter"
+for topic in "${SCAN_TOPIC}" "${ANALYZE_TOPIC}" "${DEAD_TOPIC}"; do
     if ! exists gcloud pubsub topics describe "${topic}" --project "${PROJECT}"; then
         run gcloud pubsub topics create "${topic}" --project "${PROJECT}"
     fi
@@ -336,7 +340,19 @@ if ! exists gcloud pubsub subscriptions describe "${ANALYZE_SUB}" --project "${P
         --push-endpoint "${API_URL:-https://API_URL_PENDING}/pubsub/analyze" \
         --push-auth-service-account "${PUSH_SA}" \
         --push-auth-token-audience "${API_URL:-https://API_URL_PENDING}" \
-        --ack-deadline 600
+        --ack-deadline 600 \
+        --dead-letter-topic "${DEAD_TOPIC}" \
+        --max-delivery-attempts 5
+fi
+
+# Pub/Sub needs permission to publish into the dead-letter topic and to ack the
+# original subscription on its behalf.
+PUBSUB_SA="service-$(gcloud projects describe "${PROJECT}" --format='value(projectNumber)' 2>/dev/null)@gcp-sa-pubsub.iam.gserviceaccount.com"
+if [[ "$DRY_RUN" == "false" ]]; then
+    run gcloud pubsub topics add-iam-policy-binding "${DEAD_TOPIC}" \
+        --project "${PROJECT}" --member "serviceAccount:${PUBSUB_SA}" --role roles/pubsub.publisher
+    run gcloud pubsub subscriptions add-iam-policy-binding "${ANALYZE_SUB}" \
+        --project "${PROJECT}" --member "serviceAccount:${PUBSUB_SA}" --role roles/pubsub.subscriber
 fi
 
 # ---------------------------------------------------------------------------

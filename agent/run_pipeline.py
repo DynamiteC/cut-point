@@ -54,7 +54,15 @@ async def run_live(trailer_id: str) -> dict:
         raise SystemExit(f"unknown trailer_id {trailer_id}; known: {list(ground_truth)}")
 
     duration_s = ground_truth[trailer_id]["duration_s"]
-    video_path = str(REPO_ROOT / "data" / "videos" / f"{trailer_id}.mp4")
+    # A deployed extractor has no data/videos/ in its image, so a local path is
+    # unreachable there and step 2 fails on every cloud run. When a bucket is
+    # configured, hand it a gs:// URI it can actually fetch; locally, keep the
+    # path that `make demo` relies on.
+    bucket = _os.environ.get("GCS_BUCKET")
+    if bucket:
+        video_path = f"gs://{bucket}/videos/{trailer_id}.mp4"
+    else:
+        video_path = str(REPO_ROOT / "data" / "videos" / f"{trailer_id}.mp4")
 
     root_agent = build_root_agent()
     runner = InMemoryRunner(agent=root_agent, app_name="cutpoint")

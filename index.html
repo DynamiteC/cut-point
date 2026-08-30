@@ -1044,12 +1044,17 @@
 
         if (cache[id]) { draw(cache[id]); return; }
         txt("demo-status", "loading " + id + "\u2026");
-        fetch(API + "/report/" + id)
+        // Bounded: Cloud Run scales to zero and the hero is the first thing a
+        // judge sees. An unexplained row of dots is worse than a sentence.
+        var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+        if (ctrl) setTimeout(function () { ctrl.abort(); }, 20000);
+        fetch(API + "/report/" + id, ctrl ? { signal: ctrl.signal } : undefined)
           .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
           .then(function (n) { cache[id] = n; draw(n); })
           .catch(function () {
             txt("demo-status",
-              "Could not reach the service. The full reports are at app.html.");
+              "The service did not answer in time. It sleeps when unused and takes "
+              + "a moment to wake. The full reports are at app.html.");
           });
       };
 

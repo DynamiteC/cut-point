@@ -115,9 +115,15 @@ def test_daily_budget_stops_runaway_spend(monkeypatch, tmp_path) -> None:
     assert codes[2:] == [429, 429], "runs past budget must be refused, not billed"
 
 
-def test_a_failed_run_does_not_consume_daily_budget(monkeypatch, tmp_path) -> None:
-    """A run of transient failures must not lock out legitimate work for the
-    rest of the day. Reserve before running, refund what was never spent.
+def test_a_failed_run_still_consumes_daily_budget(monkeypatch, tmp_path) -> None:
+    """This test previously asserted the opposite, and was wrong.
+
+    A run that fails at the diagnostician has already paid for the ClickHouse
+    queries, the ffmpeg extractions and every Gemini call before the one that
+    broke. Refunding it made the ceiling soft on exactly the case it exists to
+    bound: a repeating failure could spend without limit, because every attempt
+    handed its budget back. Only a rejection is refunded, because only a
+    rejection does no work.
     """
     from agent.cutpoint_agent import store
     from api import main
@@ -128,18 +134,43 @@ def test_a_failed_run_does_not_consume_daily_budget(monkeypatch, tmp_path) -> No
     monkeypatch.setattr(main, "_MAX_PER_DAY", 2)
 
     def boom(_trailer_id):
-        raise RuntimeError("Vertex AI unavailable")
+        raise RuntimeError("Vertex AI unavailable after the extractions were paid for")
 
     monkeypatch.setattr(main.app.state, "pipeline_runner", boom, raising=False)
-    for _ in range(3):
+    for _ in range(2):
         try:
             client.post("/analyze", json={"trailer_id": "demo_001"})
         except RuntimeError:
             pass
 
     day = datetime.now(UTC).strftime("%Y-%m-%d")
+    assert store.bump_daily_analyses(day, delta=0) == 2, "failed runs must still count"
+
     monkeypatch.setattr(main.app.state, "pipeline_runner", lambda t: {"report_path": "x"})
-    assert client.post("/analyze", json={"trailer_id": "demo_001"}).status_code == 200, (
-        "three failed runs must not have exhausted a budget of two"
+    assert client.post("/analyze", json={"trailer_id": "demo_001"}).status_code == 429, (
+        "two failed runs spent the budget of two; the third must be refused"
     )
-    assert store.bump_daily_analyses(day, delta=0) == 1
+
+
+def test_a_rejected_run_is_refunded(monkeypatch, tmp_path) -> None:
+    """The over-budget path does no work, so it must not consume budget itself,
+    or the counter would run away past the ceiling on every retry.
+    """
+    from agent.cutpoint_agent import store
+    from api import main
+
+    monkeypatch.setenv("CUTPOINT_REQUIRE_AUTH", "false")
+    monkeypatch.setenv("CUTPOINT_STORE", "local")
+    monkeypatch.setattr(store, "BUDGET_DIR", tmp_path / "budget")
+    monkeypatch.setattr(main, "_MAX_PER_DAY", 1)
+    monkeypatch.setattr(main.app.state, "pipeline_runner", lambda t: {"report_path": "x"},
+                        raising=False)
+
+    assert client.post("/analyze", json={"trailer_id": "demo_001"}).status_code == 200
+    for _ in range(3):
+        assert client.post("/analyze", json={"trailer_id": "demo_001"}).status_code == 429
+
+    day = datetime.now(UTC).strftime("%Y-%m-%d")
+    assert store.bump_daily_analyses(day, delta=0) == 1, (
+        "rejections must not inflate the counter"
+    )

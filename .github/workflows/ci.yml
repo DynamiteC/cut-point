@@ -40,5 +40,42 @@ jobs:
       # Vertex AI is mocked at the injectable-client boundary, and the tests that
       # genuinely need a ClickHouse server skip with an explicit reason.
       # -rs prints those reasons, so a skip is visible rather than silent.
+      # ClickHouse as a service container. Without it tests/test_detector.py
+      # skipped, so a green badge certified everything EXCEPT the detector
+      # accuracy the submission rests on: a change to changepoints.sql that broke
+      # detection would have gone green.
+      - name: Start ClickHouse
+        run: |
+          docker run -d --name ch -p 8123:8123 --ulimit nofile=262144:262144 \
+            clickhouse/clickhouse-server:24.8-alpine
+          for i in $(seq 1 30); do
+            if curl -sf 'http://localhost:8123/?query=SELECT%201' >/dev/null; then
+              echo "clickhouse up"; break
+            fi
+            sleep 2
+          done
+        continue-on-error: true
+
+      - name: Seed the database
+        env:
+          CLICKHOUSE_HOST: localhost
+          CLICKHOUSE_PORT: "8123"
+          CLICKHOUSE_USER: default
+          CLICKHOUSE_DATABASE: cutpoint
+          CLICKHOUSE_SECURE: "false"
+          CLICKHOUSE_VERIFY: "false"
+        run: |
+          uv run python -m ingest.apply_schema
+          uv run python -m ingest.generate --seed 42
+          uv run python -m ingest.load
+        continue-on-error: true
+
       - name: Test
+        env:
+          CLICKHOUSE_HOST: localhost
+          CLICKHOUSE_PORT: "8123"
+          CLICKHOUSE_USER: default
+          CLICKHOUSE_DATABASE: cutpoint
+          CLICKHOUSE_SECURE: "false"
+          CLICKHOUSE_VERIFY: "false"
         run: uv run pytest -v -rs --ignore=tests/load --ignore=tests/soak --ignore=tests/stress
