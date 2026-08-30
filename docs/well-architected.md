@@ -18,8 +18,9 @@ scores itself full marks is not worth reading.
 | Config validation | `api/main.py::_validate_cloud_config` refuses to start a cloud deployment missing `GOOGLE_CLOUD_PROJECT`, `GEMINI_MODEL` or `CLICKHOUSE_HOST`, and warns loudly if auth has been disabled on a deployed revision. |
 | Health | `GET /health` on the API and watcher. Not `/healthz`: Google's frontend intercepts that path on Cloud Run and answers 404 without reaching the container. |
 
-**Gaps, stated plainly.** CI runs ruff and pytest on push but gates on nothing else; there is no
-coverage threshold. There are no metrics and no dashboards, only logs, so there is no request-duration histogram or error
+**Gaps, stated plainly.** Verification is run locally (`make verify-all`: ruff plus the full
+pytest suite); there is no hosted CI and no coverage threshold. There are no metrics and no
+dashboards, only logs, so there is no request-duration histogram or error
 rate per endpoint. ADK 2.x emits OpenTelemetry spans natively and they are not exported to Cloud
 Trace; that is the single highest-value remaining operational improvement.
 

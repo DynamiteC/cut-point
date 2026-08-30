@@ -62,5 +62,6 @@ ClickHouse Cloud endpoint. The code path exists and is the documented default in
 
 There is no coverage gate. 89 tests cover the analysis SQL, the agent steps, the deterministic
 analyst, the narrator's grounding check, the watcher, the API auth surface, report rendering and
-escaping, ingest checkpointing, and four chaos scenarios, but no percentage is enforced. CI runs
-ruff and pytest on push; it does not gate on coverage.
+escaping, ingest checkpointing, and four chaos scenarios, but no percentage is enforced.
+Verification is local (`make verify-all` runs ruff and pytest); there is no hosted CI and no
+coverage gate.
