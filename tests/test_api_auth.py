@@ -174,3 +174,95 @@ def test_a_rejected_run_is_refunded(monkeypatch, tmp_path) -> None:
     assert store.bump_daily_analyses(day, delta=0) == 1, (
         "rejections must not inflate the counter"
     )
+
+
+def test_pubsub_redelivery_of_an_inflight_job_does_not_start_a_second_pipeline(
+    monkeypatch, tmp_path
+) -> None:
+    """Pub/Sub is at-least-once. A long pipeline can approach the 600s ack
+    deadline, so a redelivery can arrive while the first run is still going. The
+    done-check does not catch that (the job is "running", not "done"), so a
+    recent in-flight job must be acked and skipped rather than starting a second
+    pipeline that double-spends on Gemini.
+    """
+    import base64
+    import json
+
+    from agent.cutpoint_agent import store
+    from api import main
+
+    monkeypatch.setenv("CUTPOINT_REQUIRE_AUTH", "false")
+    monkeypatch.setenv("CUTPOINT_STORE", "local")
+    monkeypatch.setattr(store, "JOBS_DIR", tmp_path / "jobs")
+
+    store.save_job(
+        "job_inflight",
+        {
+            "job_id": "job_inflight",
+            "trailer_id": "demo_001",
+            "status": "running",
+            "started_at": datetime.now(UTC).isoformat(),
+        },
+    )
+
+    ran = {"count": 0}
+
+    def _should_not_run(_trailer_id):
+        ran["count"] += 1
+        return {"report_path": "x"}
+
+    monkeypatch.setattr(main.app.state, "pipeline_runner", _should_not_run, raising=False)
+
+    data = base64.b64encode(
+        json.dumps({"trailer_id": "demo_001", "job_id": "job_inflight"}).encode()
+    ).decode()
+    response = client.post("/pubsub/analyze", json={"message": {"data": data}})
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "running"
+    assert ran["count"] == 0, "a redelivery of an in-flight job must not re-run the pipeline"
+
+
+def test_pubsub_redelivery_of_a_stale_running_job_is_retried(monkeypatch, tmp_path) -> None:
+    """A run that crashed without ever recording "failed" leaves a stale
+    "running" job. Once its start is older than the in-flight window it must be
+    retryable, or the trailer could never be analysed again.
+    """
+    import base64
+    import json
+    from datetime import timedelta
+
+    from agent.cutpoint_agent import store
+    from api import main
+
+    monkeypatch.setenv("CUTPOINT_REQUIRE_AUTH", "false")
+    monkeypatch.setenv("CUTPOINT_STORE", "local")
+    monkeypatch.setattr(store, "JOBS_DIR", tmp_path / "jobs")
+
+    stale = datetime.now(UTC) - timedelta(seconds=main._INFLIGHT_WINDOW_S + 60)
+    store.save_job(
+        "job_stale",
+        {
+            "job_id": "job_stale",
+            "trailer_id": "demo_001",
+            "status": "running",
+            "started_at": stale.isoformat(),
+        },
+    )
+
+    ran = {"count": 0}
+    monkeypatch.setattr(
+        main.app.state,
+        "pipeline_runner",
+        lambda t: ran.__setitem__("count", ran["count"] + 1) or {"report_path": "x"},
+        raising=False,
+    )
+
+    data = base64.b64encode(
+        json.dumps({"trailer_id": "demo_001", "job_id": "job_stale"}).encode()
+    ).decode()
+    response = client.post("/pubsub/analyze", json={"message": {"data": data}})
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "done"
+    assert ran["count"] == 1, "a stale running job past the window must be retried once"

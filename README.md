@@ -13,8 +13,10 @@ It does not wait to be asked. Cloud Scheduler ticks a Pub/Sub topic, a watcher r
 detection over live data, and a genuinely new cliff triggers the whole diagnosis pipeline with
 no human in the loop.
 
-**Deployed on Google Cloud.** Cloud Run (three services), Pub/Sub (two topics with OIDC push
-subscriptions), Firestore, Cloud Scheduler, GCS, and Gemini 3.5 Flash on Vertex AI.
+**Runs on Google Cloud.** Cloud Run (three services), Pub/Sub (two topics with OIDC push
+subscriptions), Firestore, Cloud Scheduler, GCS, and Gemini 3.5 Flash on Vertex AI. The
+deployment is cost-managed: the scheduler is paused and the paid endpoints require an
+allowlisted OIDC caller (see "A note on the running deployment").
 
 | | |
 |---|---|
@@ -112,8 +114,8 @@ page explains that 401 rather than offering a button that would always fail.
 
 ### A note on the running deployment
 
-The services are deployed and the endpoints above are live, but the deployment is deliberately
-cost-managed rather than left running hot:
+The services can be deployed from this repo and the read endpoints are reachable when the
+deployment is up, but it is deliberately cost-managed rather than left running hot:
 
 - **Cloud Scheduler is paused.** An enabled `*/15` tick wakes the watcher 96 times a day
   indefinitely. Resume it to watch the loop run, then pause it again.
@@ -125,7 +127,8 @@ cost-managed rather than left running hot:
 The All Things Agentic rules state an application "does not need to be publicly accessible or
 deployed at the exact moment of submission or judging" provided deployment is demonstrated. The
 demo video shows the full loop executing, alongside the Cloud Run dashboard, the Pub/Sub
-subscriptions and Vertex AI logs. `GET /report/demo_001` returns a real report right now.
+subscriptions and Vertex AI logs. `GET /report/demo_001` returns a real report when the service
+is running.
 
 ### Verify the autonomous loop
 
@@ -314,9 +317,13 @@ if it cites a second that was not detected as a cliff.
 6. **Diagnostician**: sends each clip to Gemini and gets a `Diagnosis`. The prompt is
    clip-relative, since the clip's own timeline starts at 00:00. A clip that fails is recorded
    and skipped; it does not sink the other findings
-7. **Reporter**: merges into `DirectorsNotes`, writes to Firestore and GCS in the cloud, or to
+7. **Narrator**: turns the verified findings and diagnoses into an editor-facing summary via
+   Gemini, with `mcp-clickhouse` available for supporting context. `summary_is_grounded()`
+   rejects any summary that cites a second not detected as a cliff, falling back to the
+   deterministic template
+8. **Reporter**: merges into `DirectorsNotes`, writes to Firestore and GCS in the cloud, or to
    `data/reports/` locally
-8. API returns `{"report_id": trailer_id}`; the Pub/Sub path updates the Firestore job to `done`
+9. API returns `{"report_id": trailer_id}`; the Pub/Sub path updates the Firestore job to `done`
 
 ---
 
@@ -331,11 +338,11 @@ agent/
 │   ├── schemas.py         # Pydantic models (AnalysisResult, Diagnosis, DirectorsNotes)
 │   ├── mcp.py             # mcp-clickhouse stdio session management
 │   └── steps/
-│       ├── analyst.py     # deterministic: fixed SQL over readonly=1, no model
-│       ├── narrator.py    # LlmAgent + McpToolset (the only LLM-driven step)
-│       ├── extractor.py   # BaseAgent wrapping run_extraction()
-│       ├── diagnostician.py  # BaseAgent wrapping diagnose_clip() per cliff
-│       └── reporter.py    # BaseAgent wrapping build_directors_notes()
+│       ├── analyst.py     # [1] deterministic: fixed SQL over readonly=1, no model
+│       ├── extractor.py   # [2] BaseAgent wrapping run_extraction()
+│       ├── diagnostician.py  # [3] BaseAgent wrapping diagnose_clip() per cliff
+│       ├── narrator.py    # [4] LlmAgent + McpToolset (the only LLM-driven step)
+│       └── reporter.py    # [5] BaseAgent wrapping build_directors_notes()
 ├── run_pipeline.py        # CLI driver (--dry-run support)
 
 api/
@@ -545,10 +552,10 @@ Phase 10 delivers production-readiness evidence across five test categories:
 | Test Type | Key Finding | Gate |
 |-----------|-------------|------|
 | **Smoke** | All system components alive in <60s | `make smoke` |
-| **Load** | p99 API latency 102ms at 50 concurrent, 268k rows/sec ingest | `make load-test` |
+| **Load** | p99 API latency 102ms at 50 concurrent, 267,891 rows/sec ingest (local harness, single run) | `make load-test` |
 | **Stress** | Concurrency ceiling measured before degradation | `make stress-test` |
 | **Chaos** | 4/4 failure scenarios: fails loud, never corrupts | `make chaos-test` |
-| **Soak** | <1% memory growth over 30 min (threshold 20%) | `make soak-test-short` |
+| **Soak** | <1% memory growth in the recorded 1-min run; target runs to 30 min (threshold 20%) | `make soak-test-short` |
 
 Full reports with charts: [docs/perf/README.md](docs/perf/README.md)
 
@@ -558,7 +565,7 @@ Full reports with charts: [docs/perf/README.md](docs/perf/README.md)
 
 - **Pre-commit check**: Run `make smoke` before every push. It starts ClickHouse, verifies
   all services respond, and runs the pipeline in dry-run mode in under 60 seconds.
-- **Testing**: `uv run pytest -v` runs the full suite (87 tests). Chaos tests validate
+- **Testing**: `uv run pytest -v` runs the full suite (89 tests). Chaos tests validate
   failure modes. Load/stress/soak run as standalone scripts via Makefile targets.
 - **Frontend**: `index.html` is the landing page and `app.html` is the working UI, both
   hosted on GitHub Pages and reading live from the deployed API. The REST facade at

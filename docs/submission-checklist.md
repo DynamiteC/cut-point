@@ -7,7 +7,7 @@ Requirement to artifact, for both entries. Every row names something a judge can
 | Requirement | Artifact | Status |
 |---|---|---|
 | Gemini 3.5 or newer via Gemini API or Vertex AI | `agent/cutpoint_agent/config.py` (`gemini-3.5-flash`), `steps/diagnostician.py` (`genai.Client(vertexai=True)`) | Verified by `make preflight`, which makes a real call rather than trusting a catalog listing |
-| At least one Google agent framework | Google ADK: `agent/cutpoint_agent/agent.py` (`SequentialAgent`, `LlmAgent`, `BaseAgent`, `McpToolset`). GenAI SDK: `google-genai` | Two of the four accepted frameworks |
+| At least one Google agent framework | Google ADK is the agent framework: `agent/cutpoint_agent/agent.py` (`SequentialAgent`, `LlmAgent`, `BaseAgent`, `McpToolset`). The GenAI SDK (`google-genai`) is used for the direct Vertex AI calls. | Google ADK satisfies the requirement; the GenAI SDK is the model client, not counted as a second framework |
 | At least one Google Cloud infrastructure service | **Cloud Run**, **Pub/Sub**, **Firestore**, created by `deploy/deploy_all.sh` | Three of the five the rules name. Vertex AI and Cloud Storage are used but not counted |
 
 ## All Things Agentic: what to submit
@@ -15,7 +15,7 @@ Requirement to artifact, for both entries. Every row names something a judge can
 | Requirement | Artifact |
 |---|---|
 | Category | The Taskmaster |
-| Hosted project URL | https://dynamitec.github.io/cut-point/app.html (UI, reads the live API). API direct: `https://cutpoint-api-nlfe4x5pnq-uc.a.run.app` |
+| Hosted project URL | https://dynamitec.github.io/cut-point/app.html (UI, reads the API). API direct: `https://cutpoint-api-nlfe4x5pnq-uc.a.run.app` (scale-to-zero; first request may cold-start) |
 | Text description | `docs/DEVPOST_SUBMISSION.md` |
 | Public code repository | https://github.com/DynamiteC/cut-point |
 | Spin-up instructions in README | `README.md`, Quickstart: local in five commands, plus a scripted cloud deploy and teardown |
@@ -29,7 +29,7 @@ Requirement to artifact, for both entries. Every row names something a judge can
 |---|---|---|
 | Innovation and operational utility | 40% | The watcher completes a multi-step workflow with no human step: Cloud Scheduler to Pub/Sub to fingerprint diff to full diagnosis. The fingerprint is what makes it an agent rather than a cron job |
 | Architectural discipline and tech stack | 30% | Step order fixed in code, never chosen by a model, and no model in the numeric path at all: step 1 reads ClickHouse over a `readonly=1` connection. The model's language output is grounding-checked and rejected if it cites an undetected cliff. Auth is OIDC with audience pinning and an invoker allowlist. Concurrency cap and daily budget ceiling. State in Firestore, not on an ephemeral disk |
-| Demo and production readiness | 30% | 87 tests including four chaos scenarios, `docs/perf/`, honest limitations in `docs/BLOCKERS.md`, reproducible setup, scripted deploy and teardown |
+| Demo and production readiness | 30% | 89 tests including four chaos scenarios, `docs/perf/`, honest limitations in `docs/BLOCKERS.md`, reproducible setup, scripted deploy and teardown |
 
 ## Agentic Cinema
 

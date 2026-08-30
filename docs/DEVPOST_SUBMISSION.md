@@ -14,7 +14,7 @@ Everything needed to complete the submission for the **All Things Agentic Hackat
 | Category | **The Taskmaster** |
 | Tagline | An agent that watches audience-retention data on its own, and when a trailer develops a new drop-off cliff, diagnoses the exact frames responsible and writes the recut notes. No human asks it to. |
 | Gemini model | `gemini-3.5-flash` via **Vertex AI** (`google-genai`, `vertexai=True`, location `global`) |
-| Google agent framework | **Google ADK** (`SequentialAgent`, `LlmAgent`, `BaseAgent`, `McpToolset`) and the **GenAI SDK** (`google-genai`) |
+| Google agent framework | **Google ADK** (`SequentialAgent`, `LlmAgent`, `BaseAgent`, `McpToolset`); the **GenAI SDK** (`google-genai`) is the model client for the direct Vertex AI calls, not a second agent framework |
 | Google Cloud infrastructure | **Cloud Run**, **Pub/Sub**, **Firestore** (qualifying) plus Cloud Scheduler and Cloud Storage (supporting) |
 | Repository | https://github.com/DynamiteC/cut-point |
 | Build window | 19-31 August 2026, inside the submission period |

@@ -36,6 +36,6 @@ Generated: 2026-08-24 04:12 UTC
 
 ## Infrastructure Note
 
-All benchmarks were run against a **local standalone ClickHouse binary** (`.local-clickhouse/clickhouse server`), not ClickHouse Cloud. Production latencies on ClickHouse Cloud may differ due to network overhead, shared resources, and different hardware profiles. Thresholds are set conservatively for local dev: p99 < 2000ms at 50 concurrent requests.
+All benchmarks were run against a **local standalone ClickHouse binary** (`.local-clickhouse/clickhouse server`), not ClickHouse Cloud, on a single developer machine in one run. Exact figures depend on the host hardware and are not a production guarantee; regenerate them with `make load-test`. Production latencies on ClickHouse Cloud may differ due to network overhead, shared resources, and different hardware profiles. Thresholds are set conservatively for local dev: p99 < 2000ms at 50 concurrent requests.
 
 ![Latency vs Concurrency](load-chart.png)

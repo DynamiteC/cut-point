@@ -281,12 +281,24 @@ def pubsub_analyze(envelope: dict, caller: str = Depends(verify_google_identity)
     job_id = payload.get("job_id") or uuid.uuid4().hex
     if not trailer_id or not _valid_id(trailer_id):
         raise HTTPException(status_code=400, detail="invalid trailer_id")
+    # job_id reaches Firestore/filesystem document paths via store; validate it
+    # at the boundary too rather than relying on store._check_id to raise a 500.
+    if not _valid_id(job_id):
+        raise HTTPException(status_code=400, detail="invalid job_id")
 
     existing = store.load_job(job_id)
     if existing and existing.get("status") == "done":
         # Pub/Sub is at-least-once; a redelivery must not re-run the pipeline
         # and re-spend on Gemini.
         return {"job_id": job_id, "status": "done", "note": "already complete"}
+    if existing and existing.get("status") == "running" and _recently_started(existing):
+        # A redelivery that arrives while the first delivery is still running
+        # (a long pipeline can approach the 600s ack deadline) must not start a
+        # second pipeline for the same job and double-spend on Gemini. Ack it
+        # and let the in-flight run finish. Only recent "running" jobs are
+        # treated this way, so a crashed run that never reached "failed" can
+        # still be retried once its start is older than the ack window.
+        return {"job_id": job_id, "status": "running", "note": "already in progress"}
 
     store.save_job(job_id, {"job_id": job_id, "trailer_id": trailer_id, "status": "running",
                             "started_at": datetime.now(UTC).isoformat()})
@@ -304,6 +316,25 @@ def pubsub_analyze(envelope: dict, caller: str = Depends(verify_google_identity)
 
 def _valid_id(value: str) -> bool:
     return 0 < len(value) <= 64 and all(c.isalnum() or c in "_-" for c in value)
+
+
+# Longer than the Pub/Sub ack deadline (600s), so a redelivery during a genuine
+# in-flight run is treated as a duplicate, but a run that crashed without ever
+# recording "failed" becomes retryable once its start is older than this window.
+_INFLIGHT_WINDOW_S = 900
+
+
+def _recently_started(job: dict) -> bool:
+    started_at = job.get("started_at")
+    if not started_at:
+        return False
+    try:
+        started = datetime.fromisoformat(started_at)
+    except (ValueError, TypeError):
+        return False
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=UTC)
+    return (datetime.now(UTC) - started).total_seconds() < _INFLIGHT_WINDOW_S
 
 
 @app.get("/report/{trailer_id}")

@@ -8,7 +8,7 @@ output with whitespace and truncated mid-JSON. A validator step existed purely t
 overrule it, which meant every field it produced was discarded.
 
 So the numbers are now read directly. No model sits between the database and the
-report. The model still has a job in this pipeline -- steps 4 and 5 -- but it is
+report. The model still has a job in this pipeline -- steps 3 and 4 -- but it is
 perception and language, never arithmetic.
 
 The historical comparison is preserved in validator.validate() and its tests,

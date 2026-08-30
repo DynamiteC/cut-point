@@ -32,8 +32,8 @@ Trace; that is the single highest-value remaining operational improvement.
 | Authentication | `api/auth.py`. Google-signed OIDC, issuer checked, audience pinned to the service's own URL, caller pinned to an allowlist of service accounts. Fails closed: auth is on unless explicitly disabled. |
 | Authorization boundary | Read endpoints public so the UI needs no credential; every endpoint that spends money is authenticated. The watcher and extractor are private at the platform level. |
 | Least privilege | The extractor is `--no-allow-unauthenticated` because it shells out to ffmpeg. GCS reads are confined to the configured bucket, since the service account holds `storage.objectAdmin` project-wide. |
-| Injection | `trailer_id` and `job_id` constrained to `^[a-zA-Z0-9_-]{1,64}$` at the API boundary, and re-validated in `store.py` and the watcher for callers that do not come through FastAPI. `changepoints.sql` interpolates the id into query text, so ids read out of the database are validated too. |
-| Database access | The analyst and watcher run fixed `.sql` files over a connection pinned to `readonly=1` at the session level, so the server itself refuses a write (verified: ClickHouse error 164; pinned by a test, because the watcher previously took a read-write connection while four documents said otherwise). The narrator's tool access goes through `mcp-clickhouse`, read-only by construction. Read-write `clickhouse-connect` is confined to `ingest/`. |
+| Injection | `trailer_id` and `job_id` constrained to `^[a-zA-Z0-9_-]{1,64}$` at the API boundary, and re-validated in `store.py` and the watcher for callers that do not come through FastAPI. The analysis SQL binds `trailer_id` server-side as a `{trailer_id:String}` parameter, never interpolated into query text, so injection is structurally impossible; the charset check is a second layer. |
+| Database access | The analyst and watcher run fixed `.sql` files over a connection pinned to `readonly=1` at the session level, so the server itself refuses a write (ClickHouse error 164, pinned by a test in `tests/test_watcher.py`, because the watcher previously took a read-write connection while four documents said otherwise). The narrator's tool access goes through `mcp-clickhouse`, read-only by construction. Read-write `clickhouse-connect` is confined to `ingest/`. |
 | Output encoding | The HTML report autoescapes. It did not: `select_autoescape(["html"])` matches the final extension and the template is `report.html.jinja`, so free-form model output was written verbatim into a page served as `text/html`. |
 | Data exposure | `GET /jobs/{id}` returns an allowlist of progress fields. Raw exception text and caller identity are never served anonymously. ffmpeg and ffprobe stderr, which echoes the input URI, is logged rather than returned. |
 | Secrets | No credentials in code. `.env` is gitignored, never committed, and excluded from both the Docker build context and the gcloud source upload. |
@@ -56,7 +56,7 @@ ClickHouse Cloud has never been exercised.
 | Timeouts | 120s on the Vertex call, 30s on the extractor HTTP call, 10s on ClickHouse connect, 600s Pub/Sub ack deadline covering a full pipeline run. |
 | Bounded retries | A failed scan returns 200 with `status: degraded` rather than a 5xx, because Pub/Sub redelivers on 5xx and an unreachable database is not something a redelivery fixes. Retention is capped at one hour with 60-600s backoff. |
 | Data integrity | Ingest checkpoints carry a fingerprint of the file they belong to, so a regenerated events file cannot cause the loader to skip the head of the new one. |
-| Tested | 87 tests, including four chaos scenarios (ClickHouse unreachable, extractor down, corrupt video, Gemini timeout). |
+| Tested | 89 tests, including four chaos scenarios (ClickHouse unreachable, extractor down, corrupt video, Gemini timeout). |
 
 **Gaps.** No multi-region anything. `--max-instances=1` is a cost choice that is also a
 single point of failure. No dead-letter topic; a permanently poisonous message is dropped when
@@ -75,9 +75,10 @@ retention expires rather than quarantined for inspection.
 | Scheduled spend | The Cloud Scheduler job is created **paused**. An enabled `*/15` tick wakes the watcher 96 times a day indefinitely. |
 | Teardown | `deploy/teardown.sh`, with `--purge-data` for Firestore and the bucket. |
 
-**Measured.** A log audit found 714 watcher invocations in two hours, of which the scheduler
-explained 8. The rest was Pub/Sub redelivering 5xx responses, retained for the default seven
-days. That is what drove the retention cap, the backoff, and the degraded-path 200.
+**Observed during a live run.** A log audit found roughly 700 watcher invocations in two hours,
+only a handful of which the scheduler explained. The rest was Pub/Sub redelivering 5xx responses,
+retained for the default seven days. That is what drove the retention cap, the backoff, and the
+degraded-path 200.
 
 ---
 
@@ -90,7 +91,7 @@ days. That is what drove the retention cap, the backoff, and the degraded-path 2
 | Memory | In the cloud the clip is passed to Gemini by `gs://` URI rather than inline bytes, keeping whole videos out of the service's memory. |
 | Connections | The extractor's HTTP client is owned by a context manager. It previously leaked a client and pool per pipeline run on a long-lived instance. |
 | Model budget | The analyst is capped at 32768 output tokens with a 1024-token thinking budget, after it spent an 8192 cap on reasoning and truncated its answer at column 50. |
-| Measured | `docs/perf/`: p99 API latency 102ms at 50 concurrent, 268k rows/sec ingest. |
+| Measured | `docs/perf/` (local harness, single run): p99 API latency 102ms at 50 concurrent, 267,891 rows/sec ingest. |
 
 **Gaps.** Diagnoses run serially, one Gemini call per cliff. Parallelising them would cut
 wall-clock roughly linearly and is the obvious next win. There is no caching: re-analysing a

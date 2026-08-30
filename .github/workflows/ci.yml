@@ -46,15 +46,30 @@ jobs:
       # detection would have gone green.
       - name: Start ClickHouse
         run: |
+          # Pin the default user to password-less access explicitly, so auth is
+          # deterministic regardless of the image's baked-in default, and set
+          # the credentials the seed and test steps use.
           docker run -d --name ch -p 8123:8123 --ulimit nofile=262144:262144 \
+            -e CLICKHOUSE_USER=default \
+            -e CLICKHOUSE_PASSWORD= \
+            -e CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1 \
             clickhouse/clickhouse-server:24.8-alpine
-          for i in $(seq 1 30); do
-            if curl -sf 'http://localhost:8123/?query=SELECT%201' >/dev/null; then
-              echo "clickhouse up"; break
+          # Wait for an AUTHENTICATED query to succeed, not just for the HTTP
+          # port to answer. The port accepts anonymous SELECT 1 before the users
+          # config is fully loaded, and querying then raised code 516
+          # (authentication failed) at first use inside a test.
+          ready=""
+          for i in $(seq 1 45); do
+            if curl -sf 'http://localhost:8123/?user=default&password=&query=SELECT%201' >/dev/null; then
+              echo "clickhouse authenticated and ready"; ready="yes"; break
             fi
             sleep 2
           done
-        continue-on-error: true
+          if [ -z "$ready" ]; then
+            echo "clickhouse did not become ready; dumping container logs" >&2
+            docker logs ch >&2 || true
+            exit 1
+          fi
 
       - name: Seed the database
         env:
@@ -68,7 +83,6 @@ jobs:
           uv run python -m ingest.apply_schema
           uv run python -m ingest.generate --seed 42
           uv run python -m ingest.load
-        continue-on-error: true
 
       - name: Test
         env:

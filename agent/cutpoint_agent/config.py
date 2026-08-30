@@ -1,6 +1,6 @@
 """Single source of truth for the Gemini model id.
 
-Both the analyst (ADK LlmAgent) and the diagnostician (direct google-genai call)
+Both the diagnostician (direct google-genai call) and the narrator (ADK LlmAgent)
 must agree; they previously carried divergent hardcoded fallbacks.
 """
 

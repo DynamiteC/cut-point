@@ -111,6 +111,12 @@ def bump_daily_analyses(day: str, delta: int = 1) -> int:
     if using_firestore():
         from google.cloud import firestore
 
+        # firestore.Increment is atomic, so the count never undercounts and the
+        # ceiling never leaks spend. The read-back is a separate round trip, so
+        # two concurrent callers may both observe a value at or above the ceiling
+        # and both shed -- an over-count in the safe direction. Exactness relies
+        # on Cloud Run --max-instances=1 bounding real concurrency; if that is
+        # ever raised, move the check-and-reserve into a Firestore transaction.
         ref = _client().collection(BUDGET_COLLECTION).document(day)
         ref.set({"analyses": firestore.Increment(delta)}, merge=True)
         snap = ref.get()

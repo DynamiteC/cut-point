@@ -166,7 +166,7 @@ curl -X POST https://cutpoint-api-nlfe4x5pnq-uc.a.run.app/analyze \
 gcloud scheduler jobs pause cutpoint-retention-scan-tick --location us-central1
 ```
 
-Leaving it enabled wakes the watcher 96 times a day on your billing account.
+Leaving it enabled wakes the watcher every 15 minutes, 96 times a day, on your billing account.
 
 ---
 

@@ -129,7 +129,8 @@ detected as a cliff, falling back to the deterministic template.
 Agent-side ClickHouse access goes through `mcp-clickhouse`, which is read-only by construction.
 The analyst and the watcher run fixed `.sql` files rather than model-authored queries, and use
 a connection pinned to `readonly=1` at the session level, so the server itself refuses a write
-(verified: ClickHouse error code 164). `clickhouse-connect` in read-write mode is confined to
+(ClickHouse error 164, pinned by a test in `tests/test_watcher.py`). `clickhouse-connect` in
+read-write mode is confined to
 `ingest/`.
 
 ## Why these technology choices
@@ -142,7 +143,7 @@ a connection pinned to `readonly=1` at the session level, so the server itself r
   construction, which structurally prevents the agent from ever mutating production data --
   the write path (`ingest/`, `make schema`) is a separate, explicitly privileged path using
   `clickhouse-connect` directly.
-- **Google ADK's `SequentialAgent`** for the pipeline: the four steps ALWAYS run in the same
+- **Google ADK's `SequentialAgent`** for the pipeline: the five steps ALWAYS run in the same
   order. The LLM is never asked "what should I do next" -- it is asked "diagnose this clip" and
   "phrase this recommendation." This is a deliberate simplicity constraint (TASK.md rule 6) that
   makes the system auditable and reproducible for a hackathon demo.
@@ -170,10 +171,13 @@ a connection pinned to `readonly=1` at the session level, so the server itself r
 5. **diagnostician**: for each clip, calls Gemini via `google-genai` (`vertexai=True`) with the
    clip bytes as a video `Part` plus a prompt naming the exact drop_pct and affected cohorts, and
    parses a structured `Diagnosis` (on_screen, hypothesis, severity, confidence).
-6. **reporter**: merges everything into a `DirectorsNotes` pydantic model, writes
+6. **narrator**: calls Gemini to turn the verified findings into an editor-facing summary, with
+   `mcp-clickhouse` available for supporting context. `summary_is_grounded()` rejects any summary
+   that cites a second not detected as a cliff, falling back to the deterministic template.
+7. **reporter**: merges everything into a `DirectorsNotes` pydantic model, writes
    `data/reports/{trailer_id}.json`, and renders Markdown + a self-contained HTML report (inline
    SVG retention curve, no CDN dependency) via `report/render.py`.
-7. The API returns `{"report_id": trailer_id}`; the frontend then polls
+8. The API returns `{"report_id": trailer_id}`; the frontend then polls
    `GET /report/{trailer_id}` for the JSON.
 
 ## Determinism boundary
