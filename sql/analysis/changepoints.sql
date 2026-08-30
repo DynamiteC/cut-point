@@ -5,13 +5,13 @@
 -- to matter (drop_pct >= 3%). affected_cohorts lists only cohorts whose own
 -- per-cohort drop at that second is at least half the overall drop (i.e. cohorts
 -- that actually contributed to the cliff, not every cohort with data at that second).
--- Params: {trailer_id}
+-- Params: trailer_id (String), bound server-side via clickhouse-connect.
 WITH overall AS (
     SELECT
         second_offset,
         uniqMerge(viewers_state) AS viewers
     FROM cutpoint.mv_second_viewers
-    WHERE trailer_id = '{trailer_id}'
+    WHERE trailer_id = {trailer_id:String}
     GROUP BY second_offset
     ORDER BY second_offset
 ),
@@ -38,7 +38,7 @@ per_cohort AS (
         second_offset,
         uniqMerge(viewers_state) AS viewers
     FROM cutpoint.mv_second_viewers
-    WHERE trailer_id = '{trailer_id}'
+    WHERE trailer_id = {trailer_id:String}
     GROUP BY cohort, second_offset
 ),
 per_cohort_delta AS (

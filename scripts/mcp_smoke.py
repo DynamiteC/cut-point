@@ -66,10 +66,14 @@ async def run_smoke_test() -> int:
         result = await session.call_tool("run_query", {"query": "SELECT 1"})
         print(f"result: {result.content}")
 
+        # The mcp-clickhouse run_query tool takes a raw query string, not the
+        # clickhouse-connect parameter binding the pipeline uses, so substitute
+        # the {trailer_id:String} placeholder with a quoted literal here. The id
+        # is a fixed, safe constant in this smoke script.
         retention_sql = (
             (REPO_ROOT / "sql" / "analysis" / "retention_curve.sql")
             .read_text()
-            .format(trailer_id="demo_001")
+            .replace("{trailer_id:String}", "'demo_001'")
         )
         print("\nrunning: retention_curve.sql for demo_001")
         result = await session.call_tool("run_query", {"query": retention_sql})

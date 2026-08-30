@@ -36,9 +36,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 REPORTS_DIR = REPO_ROOT / "data" / "reports"
 GROUND_TRUTH_PATH = REPO_ROOT / "data" / "ground_truth.json"
 
-# trailer_id flows into filesystem paths (data/reports/{trailer_id}.json) and into SQL query
-# text built by the analyst LLM (sql/analysis/*.sql templates) -- restrict to a safe charset
-# to rule out path traversal and SQL-injection-shaped payloads at the API boundary.
+# trailer_id flows into filesystem paths (data/reports/{trailer_id}.json). The analysis SQL
+# binds it server-side as a {trailer_id:String} parameter, so it is never interpolated into
+# query text; the charset restriction rules out path traversal and is a cheap second layer
+# against SQL-injection-shaped payloads at the API boundary.
 TRAILER_ID_PATTERN = r"^[a-zA-Z0-9_-]{1,64}$"
 JOB_ID_PATTERN = r"^[a-zA-Z0-9_-]{1,64}$"
 
@@ -83,12 +84,21 @@ _validate_cloud_config()
 app = FastAPI(title="CutPoint API")
 
 # The state-changing routes authenticate with a bearer token, not a cookie, so a
-# permissive origin list is not itself an escalation path. Deploys still set
-# CUTPOINT_ALLOWED_ORIGINS to the UI origin.
+# permissive origin list is not itself an escalation path today. Deploys still set
+# CUTPOINT_ALLOWED_ORIGINS to the UI origin; a wildcard default is only tolerable
+# because credentials are never sent, so refuse the "*" + credentials combination
+# outright to stop a future change from silently making it dangerous.
 _origins = [o.strip() for o in os.environ.get("CUTPOINT_ALLOWED_ORIGINS", "*").split(",") if o.strip()]
+_allow_credentials = os.environ.get("CUTPOINT_ALLOW_CREDENTIALS", "false").lower() == "true"
+if _allow_credentials and "*" in _origins:
+    raise RuntimeError(
+        "refusing to start: CUTPOINT_ALLOW_CREDENTIALS=true with a wildcard "
+        "CUTPOINT_ALLOWED_ORIGINS is invalid and unsafe; pin the origins."
+    )
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
+    allow_credentials=_allow_credentials,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )

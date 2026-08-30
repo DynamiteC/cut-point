@@ -27,8 +27,11 @@ class FakeClient:
         self.cliff_rows = cliff_rows
         self.queries = []
 
-    def query(self, sql):
+    def query(self, sql, parameters=None):
+        # Record the bound value too, so a test can assert a malformed id never
+        # reaches the database by any route (query text or bound parameter).
         self.queries.append(sql)
+        self.queries.append((parameters or {}).get("trailer_id", ""))
         if "FROM cutpoint.trailers" in sql:
             return FakeResult([(t,) for t in self.trailers])
         return FakeResult(self.cliff_rows)
@@ -100,7 +103,8 @@ def test_fingerprint_is_order_independent() -> None:
 
 
 def test_detect_cliffs_rejects_an_id_that_would_reach_query_text() -> None:
-    # changepoints.sql interpolates trailer_id directly into SQL text.
+    # trailer_id is bound server-side, but the charset guard still rejects a
+    # malformed id early rather than sending it to the database at all.
     client = FakeClient(["x"], [])
     with pytest.raises(ValueError):
         detect_cliffs(client, INJECTION_PAYLOAD)

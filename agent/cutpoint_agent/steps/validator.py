@@ -53,7 +53,7 @@ def _valid_id(value: str) -> bool:
 
 
 def query_cliffs(client, trailer_id: str) -> list[CliffPoint]:
-    sql = _render(CHANGEPOINTS_SQL, trailer_id)
+    sql = _load(CHANGEPOINTS_SQL, trailer_id)
     return [
         CliffPoint(
             second=int(r[0]),
@@ -61,20 +61,23 @@ def query_cliffs(client, trailer_id: str) -> list[CliffPoint]:
             z_score=float(r[2]),
             affected_cohorts=list(r[3]) if len(r) > 3 and r[3] else [],
         )
-        for r in client.query(sql).result_rows
+        for r in client.query(sql, parameters={"trailer_id": trailer_id}).result_rows
     ]
 
 
 def query_funnel(client, trailer_id: str) -> dict[str, float]:
     """Milestone funnel straight from windowFunnel(), no model in the path."""
-    sql = _render(FUNNEL_SQL, trailer_id)
-    return {str(r[0]): float(r[1]) for r in client.query(sql).result_rows}
+    sql = _load(FUNNEL_SQL, trailer_id)
+    return {
+        str(r[0]): float(r[1])
+        for r in client.query(sql, parameters={"trailer_id": trailer_id}).result_rows
+    }
 
 
 def query_retention_end(client, trailer_id: str) -> float | None:
     """Mean retention_fraction across cohorts at the final second."""
-    sql = _render(RETENTION_SQL, trailer_id)
-    rows = client.query(sql).result_rows
+    sql = _load(RETENTION_SQL, trailer_id)
+    rows = client.query(sql, parameters={"trailer_id": trailer_id}).result_rows
     if not rows:
         return None
     last_second = max(int(r[1]) for r in rows)
@@ -82,18 +85,23 @@ def query_retention_end(client, trailer_id: str) -> float | None:
     return sum(finals) / len(finals) if finals else None
 
 
-def _render(path: Path, trailer_id: str) -> str:
+def _load(path: Path, trailer_id: str) -> str:
+    """Return the raw SQL template. The trailer_id is bound server-side by
+    clickhouse-connect via a {trailer_id:String} placeholder, never interpolated
+    into the query text, so injection is structurally impossible. The charset
+    check is kept as a cheap second layer and an early, clear error.
+    """
     if not _valid_id(trailer_id):
         raise ValueError(f"invalid trailer_id: {trailer_id!r}")
-    return path.read_text().replace("{trailer_id}", trailer_id)
+    return path.read_text()
 
 
 def source_row_count(client, trailer_id: str) -> int:
     if not _valid_id(trailer_id):
         raise ValueError(f"invalid trailer_id: {trailer_id!r}")
     rows = client.query(
-        "SELECT count() FROM cutpoint.mv_second_viewers WHERE trailer_id = %(t)s",
-        parameters={"t": trailer_id},
+        "SELECT count() FROM cutpoint.mv_second_viewers WHERE trailer_id = {trailer_id:String}",
+        parameters={"trailer_id": trailer_id},
     ).result_rows
     return int(rows[0][0]) if rows else 0
 

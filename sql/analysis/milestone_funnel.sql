@@ -1,6 +1,6 @@
 -- Milestone funnel (25% / 50% / 75% / complete) using ClickHouse's native windowFunnel().
 -- This is a judged showcase query -- it must use windowFunnel, not manual step counting.
--- Params: {trailer_id}
+-- Params: trailer_id (String), bound server-side via clickhouse-connect.
 WITH trailer_duration AS (
     -- cutpoint.trailers is a ReplacingMergeTree. Before a merge runs, several
     -- versions of a row coexist, so "LIMIT 1" without FINAL returned whichever
@@ -8,7 +8,7 @@ WITH trailer_duration AS (
     -- argMax picks the newest version deterministically regardless of merge state.
     SELECT argMax(duration_s, created_at) AS duration_s
     FROM cutpoint.trailers
-    WHERE trailer_id = '{trailer_id}'
+    WHERE trailer_id = {trailer_id:String}
 ),
 per_session AS (
     SELECT
@@ -21,7 +21,7 @@ per_session AS (
             event_type = 'complete'
         ) AS funnel_level
     FROM cutpoint.raw_playback_events
-    WHERE trailer_id = '{trailer_id}'
+    WHERE trailer_id = {trailer_id:String}
       AND event_type IN ('heartbeat', 'complete')
     GROUP BY session_id
 ),

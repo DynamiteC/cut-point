@@ -18,8 +18,10 @@ MATCH_TOLERANCE_S = 2
 
 
 def run_changepoints(clickhouse_client, trailer_id: str) -> list[dict]:
-    sql = (SQL_DIR / "changepoints.sql").read_text().format(trailer_id=trailer_id)
-    result = clickhouse_client.query(sql)
+    # The templates bind trailer_id server-side via {trailer_id:String}, exactly
+    # as the pipeline runs them, so the test exercises the real query path.
+    sql = (SQL_DIR / "changepoints.sql").read_text()
+    result = clickhouse_client.query(sql, parameters={"trailer_id": trailer_id})
     return [dict(zip(result.column_names, row)) for row in result.result_rows]
 
 
@@ -89,8 +91,8 @@ def test_milestone_funnel_uses_native_window_funnel():
 
 def test_retention_curve_runs_and_normalizes_to_baseline(clickhouse_client, ground_truth):
     trailer_id = next(iter(ground_truth))
-    sql = (SQL_DIR / "retention_curve.sql").read_text().format(trailer_id=trailer_id)
-    result = clickhouse_client.query(sql)
+    sql = (SQL_DIR / "retention_curve.sql").read_text()
+    result = clickhouse_client.query(sql, parameters={"trailer_id": trailer_id})
     rows = [dict(zip(result.column_names, row)) for row in result.result_rows]
     assert rows, "retention_curve.sql returned no rows"
     second_zero_rows = [r for r in rows if r["second_offset"] == 0]
@@ -99,14 +101,14 @@ def test_retention_curve_runs_and_normalizes_to_baseline(clickhouse_client, grou
 
 def test_cohort_divergence_runs(clickhouse_client, ground_truth):
     trailer_id = next(iter(ground_truth))
-    sql = (SQL_DIR / "cohort_divergence.sql").read_text().format(trailer_id=trailer_id)
-    result = clickhouse_client.query(sql)
+    sql = (SQL_DIR / "cohort_divergence.sql").read_text()
+    result = clickhouse_client.query(sql, parameters={"trailer_id": trailer_id})
     assert result.result_rows, "cohort_divergence.sql returned no rows"
 
 
 def test_milestone_funnel_returns_monotonic_milestones(clickhouse_client, ground_truth):
     trailer_id = next(iter(ground_truth))
-    sql = (SQL_DIR / "milestone_funnel.sql").read_text().format(trailer_id=trailer_id)
-    result = clickhouse_client.query(sql)
+    sql = (SQL_DIR / "milestone_funnel.sql").read_text()
+    result = clickhouse_client.query(sql, parameters={"trailer_id": trailer_id})
     rows = dict(result.result_rows)
     assert rows["reached_25pct"] >= rows["reached_50pct"] >= rows["reached_75pct"] >= rows["completed"]

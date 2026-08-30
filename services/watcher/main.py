@@ -44,16 +44,17 @@ def _valid_id(value: str) -> bool:
 
 def active_trailers(client) -> list[str]:
     rows = client.query("SELECT DISTINCT trailer_id FROM cutpoint.trailers").result_rows
-    # changepoints.sql interpolates trailer_id into query text, so anything that
-    # is not a plain id never reaches the database.
+    # trailer_id is bound server-side (changepoints.sql uses {trailer_id:String}),
+    # so it is never interpolated into query text; the charset check is a cheap
+    # second layer.
     return [r[0] for r in rows if _valid_id(r[0])]
 
 
 def detect_cliffs(client, trailer_id: str) -> list[dict]:
     if not _valid_id(trailer_id):
         raise ValueError(f"invalid trailer_id: {trailer_id!r}")
-    sql = CHANGEPOINTS_SQL.read_text().replace("{trailer_id}", trailer_id)
-    result = client.query(sql)
+    sql = CHANGEPOINTS_SQL.read_text()
+    result = client.query(sql, parameters={"trailer_id": trailer_id})
     return [
         {"second": int(r[0]), "drop_pct": float(r[1]), "z_score": float(r[2])}
         for r in result.result_rows

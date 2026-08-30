@@ -73,6 +73,15 @@ def verify_google_identity(authorization: str | None = Header(default=None)) -> 
 
     caller = claims.get("email") or claims.get("sub") or "unknown"
     allowed = _allowed_callers()
+    # An empty allowlist means "any caller holding a valid Google token for this
+    # audience", which is a real downgrade: anyone can mint such a token from
+    # their own project. In a deployment that is a misconfiguration, not a
+    # convenience, so refuse rather than silently accept every Google account.
+    if not allowed and os.environ.get("K_SERVICE"):
+        raise HTTPException(
+            status_code=500,
+            detail="server misconfigured: CUTPOINT_ALLOWED_INVOKERS is required in a deployment",
+        )
     if allowed and caller not in allowed:
         raise HTTPException(status_code=403, detail="caller not permitted")
     return caller

@@ -126,7 +126,17 @@ def _download_from_gcs(uri: str) -> Path:
 
     bucket_name, key = _split_gs_uri(uri)
     allowed = _bucket_name()
-    if allowed and bucket_name != allowed:
+    # An unset bucket used to skip the confinement check entirely, which in a
+    # deployment silently reopens the "read any object in the project" primitive
+    # this guard exists to close. In cloud mode, no configured bucket is a
+    # refusal, not a bypass.
+    if not allowed:
+        if os.environ.get("K_SERVICE"):
+            raise HTTPException(
+                status_code=500,
+                detail="server misconfigured: GCS_BUCKET is required to fetch gs:// sources",
+            )
+    elif bucket_name != allowed:
         raise HTTPException(
             status_code=403,
             detail="source bucket is not permitted for this service",

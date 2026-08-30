@@ -1,12 +1,12 @@
 -- Per-second spread across cohorts, to surface cliffs that hit only one demographic.
--- Params: {trailer_id}
+-- Params: trailer_id (String), bound server-side via clickhouse-connect.
 WITH per_second_cohort AS (
     SELECT
         cohort,
         second_offset,
         uniqMerge(viewers_state) AS viewers
     FROM cutpoint.mv_second_viewers
-    WHERE trailer_id = '{trailer_id}'
+    WHERE trailer_id = {trailer_id:String}
     GROUP BY cohort, second_offset
 ),
 baseline AS (

@@ -142,10 +142,14 @@ def benchmark_inserts(client) -> list[dict]:
     return results
 
 
-def run_query(client, sql: str) -> float:
-    """Execute a query and return elapsed time in seconds."""
+def run_query(client, sql: str, trailer_id: str) -> float:
+    """Execute a query and return elapsed time in seconds.
+
+    trailer_id is bound server-side (the templates use {trailer_id:String}),
+    matching how the pipeline runs these same queries.
+    """
     start = time.perf_counter()
-    client.query(sql)
+    client.query(sql, parameters={"trailer_id": trailer_id})
     return time.perf_counter() - start
 
 
@@ -166,16 +170,15 @@ def benchmark_queries(client) -> dict[str, dict]:
         )
         latencies = []
 
-        # Build list of (trailer_id, formatted_sql) tasks
+        # Build list of (sql, trailer_id) tasks; the id is bound server-side.
         tasks = []
         for trailer_id in TRAILERS:
-            sql = template.replace("{trailer_id}", trailer_id)
             for _ in range(QUERY_ITERATIONS):
-                tasks.append(sql)
+                tasks.append((template, trailer_id))
 
         # Execute concurrently
         with ThreadPoolExecutor(max_workers=8) as executor:
-            futures = [executor.submit(run_query, client, sql) for sql in tasks]
+            futures = [executor.submit(run_query, client, sql, tid) for sql, tid in tasks]
             for future in as_completed(futures):
                 latencies.append(future.result())
 

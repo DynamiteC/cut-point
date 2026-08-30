@@ -29,7 +29,7 @@ Requirement to artifact, for both entries. Every row names something a judge can
 |---|---|---|
 | Innovation and operational utility | 40% | The watcher completes a multi-step workflow with no human step: Cloud Scheduler to Pub/Sub to fingerprint diff to full diagnosis. The fingerprint is what makes it an agent rather than a cron job |
 | Architectural discipline and tech stack | 30% | Step order fixed in code, never chosen by a model, and no model in the numeric path at all: step 1 reads ClickHouse over a `readonly=1` connection. The model's language output is grounding-checked and rejected if it cites an undetected cliff. Auth is OIDC with audience pinning and an invoker allowlist. Concurrency cap and daily budget ceiling. State in Firestore, not on an ephemeral disk |
-| Demo and production readiness | 30% | 83 tests including four chaos scenarios, `docs/perf/`, honest limitations in `docs/BLOCKERS.md`, reproducible setup, scripted deploy and teardown |
+| Demo and production readiness | 30% | 87 tests including four chaos scenarios, `docs/perf/`, honest limitations in `docs/BLOCKERS.md`, reproducible setup, scripted deploy and teardown |
 
 ## Agentic Cinema
 
