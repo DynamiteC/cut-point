@@ -117,6 +117,15 @@ Also, the Google frontend catches `/healthz` and returns 404 before the containe
 request. Also, an unreachable database returned a 5xx response to a Pub/Sub push. Pub/Sub retries
 a 5xx. So one scheduled tick became a billing loop. We fixed each of these.
 
+### Accomplishments that we are proud of
+
+- **No model produces a number.** ClickHouse computes every statistic: the MAD z-scores, the
+  cohort divergence, the funnels. Gemini only diagnoses cliffs the database has already proven.
+- **Fail loud, never corrupt.** The architecture surfaces every failure as a specific error and
+  writes no partial report. Chaos tests validate this across four failure scenarios.
+- **Autonomous Director's Notes.** The watcher completes the workflow with no human step, and a
+  concurrency cap and a daily budget ceiling bound the cost.
+
 ### What we learned
 
 When you join an OLAP database with a multimodal model, one failure mode appears: the model
@@ -124,7 +133,8 @@ speaks with confidence about numbers that it did not compute. A better prompt do
 An architectural boundary fixes it. Let the database own every number. Let the model own
 perception and language. Make the pipeline work even when the model fails completely. Ours does.
 If the analyst gives a wrong answer, times out, or returns broken JSON, the report is still
-correct.
+correct. Separating workflow determinism from generative perception is what makes the agent
+reliable.
 
 ### What is next
 
