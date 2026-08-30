@@ -79,6 +79,14 @@ run() {
 
 # exists(): true if a describe succeeds. Suppressed in dry-run so we still print
 # the create commands rather than skipping them against a project we cannot read.
+#
+# NOTE ON IDEMPOTENCY. This script is idempotent by SKIPPING what already exists,
+# which means a change to a resource's configuration never reaches a resource
+# created by an earlier run. That is how the analyze subscription ended up
+# without the dead-letter policy this script declares: the subscription already
+# existed, so the create was skipped and the new flags never applied. Anything
+# whose configuration matters is therefore re-applied with an explicit update
+# below, not just created.
 exists() {
     if [[ "$DRY_RUN" == "true" ]]; then
         return 1
@@ -333,6 +341,16 @@ fi
 
 # analyze -> api /pubsub/analyze. ack-deadline 600 covers a full pipeline run;
 # the handler runs inline and only acks on completion.
+#
+# Re-applied on every run, not only at creation, so the dead-letter policy
+# reaches a subscription an earlier run already made.
+if [[ "$DRY_RUN" == "false" ]] && gcloud pubsub subscriptions describe "${ANALYZE_SUB}" --project "${PROJECT}" >/dev/null 2>&1; then
+    run gcloud pubsub subscriptions update "${ANALYZE_SUB}" \
+        --project "${PROJECT}" \
+        --dead-letter-topic "${DEAD_TOPIC}" \
+        --max-delivery-attempts 5
+fi
+
 if ! exists gcloud pubsub subscriptions describe "${ANALYZE_SUB}" --project "${PROJECT}"; then
     run gcloud pubsub subscriptions create "${ANALYZE_SUB}" \
         --project "${PROJECT}" \
