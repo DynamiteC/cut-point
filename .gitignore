@@ -24,3 +24,5 @@ access/
 preprocessed_configs/
 server.log
 server.err.log
+# JetBrains IDE config (local only, was committed by mistake once)
+.idea/
