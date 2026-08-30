@@ -28,6 +28,20 @@ from agent.cutpoint_agent.schemas import (
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 
+def public_clip_ref(clip_path: str) -> str:
+    """What is safe to publish as a clip reference.
+
+    GET /report/{id} is public. A local run writes an absolute path here, so the
+    deployed API was serving the developer's home directory to anyone who asked,
+    and advertising that the report came from a laptop rather than the pipeline.
+    A gs:// URI is our own bucket and stays; anything else is reduced to its
+    filename, which is all a reader can use anyway.
+    """
+    if clip_path.startswith("gs://"):
+        return clip_path
+    return Path(clip_path).name
+
+
 def build_recommendation(cliff_second: int, hypothesis: str, severity: int) -> RecutRecommendation:
     action = REPORTER_ACTION_BY_SEVERITY.get(severity, "trim")
     target_range = (max(0, cliff_second - 5), cliff_second + 5)
@@ -62,15 +76,22 @@ def build_directors_notes(
 
     findings: list[CliffFinding] = []
     for cliff in analysis.cliffs:
-        diagnosis = diagnosis_by_second[cliff.second]
-        clip = clip_by_second[cliff.second]
+        # Step 3 deliberately contains a per-clip failure and returns the
+        # diagnoses it did get. Subscripting here threw KeyError on the first
+        # missing one, so a single timed-out clip destroyed the whole report and
+        # every paid inference in it -- undoing the containment step 3 exists to
+        # provide. tests/test_agent.py covered run_diagnostics, not this.
+        diagnosis = diagnosis_by_second.get(cliff.second)
+        clip = clip_by_second.get(cliff.second)
+        if diagnosis is None or clip is None:
+            continue
         findings.append(
             CliffFinding(
                 second=cliff.second,
                 drop_pct=cliff.drop_pct,
                 affected_cohorts=cliff.affected_cohorts,
                 z_score=cliff.z_score,
-                clip_path=clip.clip_path,
+                clip_path=public_clip_ref(clip.clip_path),
                 on_screen=diagnosis.on_screen,
                 hypothesis=diagnosis.hypothesis,
                 severity=diagnosis.severity,

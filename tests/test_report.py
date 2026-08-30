@@ -58,3 +58,55 @@ def test_golden_file_report_writes_both_formats(tmp_path):
     assert md_path.exists()
     assert html_path.exists()
     assert "<svg" in html_path.read_text()
+
+
+def test_a_failed_clip_diagnosis_does_not_destroy_the_report():
+    """Step 3 contains a per-clip failure and returns what it did get. The
+    reporter then subscripted diagnosis_by_second and raised KeyError on the
+    first missing one, so one timed-out clip destroyed the whole report and
+    every paid inference in it. test_agent.py covered run_diagnostics; nothing
+    covered the step after it.
+    """
+    from agent.cutpoint_agent.schemas import (
+        AnalysisResult,
+        Diagnosis,
+        ExtractionResult,
+    )
+    from agent.cutpoint_agent.steps.reporter import build_directors_notes
+
+    analysis = AnalysisResult(
+        trailer_id="demo_001",
+        overall_retention_end=0.35,
+        milestone_funnel={"completed": 0.35},
+        cliffs=[
+            {"second": 10, "drop_pct": 0.2, "affected_cohorts": ["18-24"], "z_score": -5.0},
+            {"second": 20, "drop_pct": 0.3, "affected_cohorts": ["25-34"], "z_score": -6.0},
+        ],
+    )
+    extraction = ExtractionResult(
+        trailer_id="demo_001",
+        clips=[
+            {"second": 10, "clip_path": "/tmp/a.mp4", "start_s": 5, "end_s": 15},
+            {"second": 20, "clip_path": "/tmp/b.mp4", "start_s": 15, "end_s": 25},
+        ],
+    )
+    # Gemini failed on second 20; only second 10 came back.
+    diagnoses = [
+        Diagnosis(second=10, on_screen="a static shot", hypothesis="slow", severity=3,
+                  confidence=0.8)
+    ]
+
+    notes = build_directors_notes("demo_001", "Demo", 90, analysis, extraction, diagnoses)
+
+    assert [c.second for c in notes.cliffs] == [10], "the surviving cliff must be reported"
+
+
+def test_public_clip_reference_never_leaks_a_local_path():
+    """GET /report/{id} is public. An absolute local path there published the
+    developer's home directory and advertised that the report came from a laptop
+    rather than the deployed pipeline.
+    """
+    from agent.cutpoint_agent.steps.reporter import public_clip_ref
+
+    assert public_clip_ref("/Users/someone/work/cut-point/data/clips/x.mp4") == "x.mp4"
+    assert public_clip_ref("gs://a-bucket/clips/x.mp4") == "gs://a-bucket/clips/x.mp4"

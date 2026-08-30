@@ -4,6 +4,7 @@ ffmpeg stream copy where possible.
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import tempfile
@@ -13,11 +14,26 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from agent.cutpoint_agent import obs
-
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 CLIPS_DIR = REPO_ROOT / "data" / "clips"
 VIDEOS_DIR = (REPO_ROOT / "data" / "videos").resolve()
+
+def _log(severity: str, message: str, **fields: object) -> None:
+    """Local structured logger.
+
+    This service is built from its own directory and its image contains only
+    services/segment_extractor. It briefly imported agent.cutpoint_agent.obs,
+    which meant the image could no longer start: uvicorn raised
+    ModuleNotFoundError on `agent` before serving a request. A standalone
+    microservice must not import the agent package. Same Cloud Logging JSON
+    shape, ten lines, no dependency.
+    """
+    if os.environ.get("K_SERVICE"):
+        print(json.dumps({"severity": severity, "message": message, **fields}, default=str), flush=True)
+    else:
+        extra = " ".join(f"{k}={v}" for k, v in fields.items())
+        print(f"[{severity}] {message}{' ' + extra if extra else ''}", flush=True)
+
 
 app = FastAPI(title="CutPoint Segment Extractor")
 
@@ -64,7 +80,7 @@ def ffprobe_duration(path: str, strict: bool = True) -> float | None:
             # specific ffprobe message instead of an unhandled CalledProcessError.
             # stderr echoes the full input URI. For a signed URL that URI IS the
             # credential, so it is logged for the operator and never returned.
-            obs.error("ffprobe failed", path=str(path), stderr=result.stderr[-300:])
+            _log("ERROR", "ffprobe failed", path=str(path), stderr=result.stderr[-300:])
             raise HTTPException(
                 status_code=500,
                 detail="ffprobe could not read a duration from the source; see server logs",
@@ -107,7 +123,7 @@ def _download_from_gcs(uri: str) -> Path:
         )
     blob = storage.Client().bucket(bucket_name).blob(key)
     if not blob.exists():
-        obs.warning("source object missing", uri=uri)
+        _log("WARNING", "source object missing", uri=uri)
         raise HTTPException(status_code=404, detail="source video not found")
     suffix = Path(key).suffix or ".mp4"
     fd, temp_name = tempfile.mkstemp(suffix=suffix)
@@ -150,7 +166,7 @@ def resolve_local_path(video_path: str) -> Path:
             detail="video_path must resolve inside the videos directory -- refusing path outside it",
         )
     if not path.exists():
-        obs.warning("source video missing", path=str(path))
+        _log("WARNING", "source video missing", path=str(path))
         raise HTTPException(status_code=404, detail="source video not found")
     return path
 
@@ -227,7 +243,7 @@ def _extract(req: ExtractRequest, source_path: Path) -> ExtractResponse:
         ]
         result = subprocess.run(cmd_reencode, capture_output=True, text=True, check=False)
         if result.returncode != 0:
-            obs.error("ffmpeg failed", stderr=result.stderr[-500:])
+            _log("ERROR", "ffmpeg failed", stderr=result.stderr[-500:])
             raise HTTPException(status_code=500, detail="ffmpeg failed; see server logs")
 
     actual_duration = ffprobe_duration(str(clip_path))
